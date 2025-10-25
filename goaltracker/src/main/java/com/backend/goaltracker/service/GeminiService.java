@@ -65,7 +65,7 @@ The JSON structure must exactly follow this format:
       "id": "<GOAL_ID>",
       "title": "<Subgoal title>",
       "description": "<Short actionable description>"
-    }
+    },...
   ]
 }
 
@@ -131,7 +131,7 @@ Goal description: "%s"
             List<Map<String, Object>> parts = (List<Map<String, Object>>) content.get("parts");
             if (parts == null || parts.isEmpty()) return "No parts found";
 
-            String text = (String) parts.get(0).get("text");
+            String text = (String) parts.getFirst().get("text");
             return text != null ? text.trim() : "No text found";
         } catch (Exception e) {
             e.printStackTrace();

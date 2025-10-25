@@ -9,7 +9,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/goals")
-@CrossOrigin(origins = "http://localhost:3000")
+@CrossOrigin(origins = "http://localhost:8080")
 public class GoalController {
 
     @Autowired
@@ -19,7 +19,7 @@ public class GoalController {
     public ResponseEntity<?> generateGoal(@RequestBody Map<String, String> request) {
         String userPrompt = request.get("prompt");
 
-        System.out.println("Received prompt: " + userPrompt);  // ← Add this
+        System.out.println("Received prompt: " );
 
         if (userPrompt == null || userPrompt.isEmpty()) {
             return ResponseEntity.badRequest()
@@ -45,5 +45,7 @@ public class GoalController {
                     .body(Map.of("error", e.getMessage()));
         }
     }
+
+
 
 }
