@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/main"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/background"
+    tools:context=".MainPageActivity">
+
+    <!-- 🏁 Big Goal -->
+    <LinearLayout
+        android:id="@+id/layoutBigGoal"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="24dp"
+        android:layout_marginTop="80dp"
+        android:background="@drawable/rounded_box"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:padding="12dp"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <ImageView
+            android:id="@+id/btnPrevGoal"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:src="@drawable/left_arrow"
+            android:contentDescription="prev" />
+
+        <TextView
+            android:id="@+id/tvBigGoal"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="Maingoal"
+            android:textSize="32sp"
+            android:textStyle="bold" />
+
+        <ImageView
+            android:id="@+id/btnNextGoal"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:src="@drawable/right_arrow"
+            android:contentDescription="next" />
+    </LinearLayout>
+
+    <!-- 🧩 Subgoal -->
+    <LinearLayout
+        android:id="@+id/layoutSubgoal"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="24dp"
+        android:layout_marginTop="16dp"
+        android:background="@drawable/roundbox_sub"
+        android:orientation="horizontal"
+        android:padding="12dp"
+        app:layout_constraintTop_toBottomOf="@id/layoutBigGoal"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <TextView
+            android:id="@+id/tvSubgoal"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="subgoal"
+            android:textSize="26sp"
+            app:layout_constraintVertical_bias="0.9" />
+
+        <CheckBox
+            android:id="@+id/checkboxSubgoal"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp" />
+    </LinearLayout>
+
+    <!-- 🌱 Plant -->
+    <ImageView
+        android:id="@+id/imgPlant"
+        android:layout_width="288dp"
+        android:layout_height="242dp"
+        android:layout_marginTop="32dp"
+        android:clickable="true"
+        android:contentDescription="Plant Image"
+        android:focusable="true"
+        android:src="@drawable/ic_plant_stage2"
+        app:layout_constraintBottom_toTopOf="@id/progressTasks"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/layoutSubgoal"
+        app:layout_constraintVertical_bias="0.45" />
+
+    <!-- 📊 Progress -->
+
+    <!-- 🌟 Bottom Bar -->
+
+    <ProgressBar
+        android:id="@+id/progressTasks"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="24dp"
+        android:layout_marginBottom="32dp"
+        android:max="100"
+        android:progress="45"
+        android:progressTint="#4CAF50"
+        app:layout_constraintBottom_toTopOf="@id/bottomBar"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <LinearLayout
+        android:id="@+id/bottomBar"
+        android:layout_width="match_parent"
+        android:layout_height="80dp"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:layout_marginBottom="8dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        android:paddingStart="-100dp">
+
+        <ImageButton
+            android:id="@+id/btnCollection"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
+            android:background="@drawable/circle_button"
+            android:contentDescription="collection" />
+
+        <Space
+            android:layout_width="80dp"
+            android:layout_height="1dp" />
+
+        <ImageButton
+            android:id="@+id/btnAddGoal"
+            android:layout_width="70dp"
+            android:layout_height="70dp"
+            android:background="@drawable/circle_button_new"
+            android:contentDescription="add" />
+    </LinearLayout>
+
+    <!-- 🎉 Celebrate -->
+    <ImageView
+        android:id="@+id/imgCelebrate"
+        android:layout_width="150dp"
+        android:layout_height="150dp"
+        android:src="@drawable/crown"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>
+
