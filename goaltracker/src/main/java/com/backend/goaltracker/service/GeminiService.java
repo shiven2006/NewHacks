@@ -5,7 +5,13 @@ import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
+import entities.Goal;
+import entities.Subgoal;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
+import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -136,6 +142,41 @@ Goal description: "%s"
         } catch (Exception e) {
             e.printStackTrace();
             return "Error parsing response: " + e.getMessage();
+        }
+    }
+
+    private Goal parseGoalFromJson(String jsonText) {
+        try {
+            JSONObject obj = new JSONObject(jsonText);
+            Goal goal = new Goal();
+            goal.setId(Integer.parseInt(obj.getString("id")));
+            goal.setTitle(obj.getString("title"));
+            goal.setDescription(obj.getString("description"));
+
+            String deadlineStr = obj.optString("deadline", null);
+            if (deadlineStr != null && !deadlineStr.isEmpty()) {
+                goal.setDeadline(LocalDate.now()); // You can parse actual date here
+            }
+
+            JSONArray subArray = obj.getJSONArray("subgoals");
+            List<Subgoal> subgoals = new ArrayList<>();
+
+            for (int i = 0; i < subArray.length(); i++) {
+                JSONObject s = subArray.getJSONObject(i);
+                Subgoal sg = new Subgoal();
+                sg.setGoalId(goal.getId());
+                sg.setGoalId(i + 1);
+                sg.setTitle(s.getString("title"));
+                sg.setDescription(s.getString("description"));
+                subgoals.add(sg);
+            }
+
+            goal.setSubgoals(subgoals);
+            return goal;
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException("Failed to parse Gemini response into Goal: " + e.getMessage());
         }
     }
 }
