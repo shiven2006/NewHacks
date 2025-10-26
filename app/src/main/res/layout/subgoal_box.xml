@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/subgoalContainer"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:padding="12dp"
+    android:background="@drawable/subgoal_box_background">
+
+    <!-- Subgoal number -->
+    <EditText
+        android:id="@+id/editTextSubgoalTitle"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="8dp"
+        android:hint="Subgoal #1"
+        android:inputType="text"
+        android:textSize="16sp"
+        android:padding="8dp"
+        android:background="@android:color/transparent"
+        android:textColor="@android:color/black"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toStartOf="@+id/editTextSubgoalDescription"
+        app:layout_constraintWidth_percent="0.3" />
+
+    <!-- Subgoal description -->
+    <EditText
+        android:id="@+id/editTextSubgoalDescription"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:hint="Subgoal description"
+        android:inputType="textMultiLine"
+        android:textSize="16sp"
+        android:padding="8dp"
+        android:background="@android:color/transparent"
+        android:textColor="@android:color/black"
+        app:layout_constraintStart_toEndOf="@id/editTextSubgoalTitle"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintWidth_percent="0.7" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>
