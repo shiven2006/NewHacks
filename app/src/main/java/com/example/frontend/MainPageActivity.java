@@ -5,13 +5,20 @@ import android.os.Bundle;
 import android.view.View;
 import android.widget.*;
 import androidx.appcompat.app.AppCompatActivity;
+
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import retrofit2.Call;
-import retrofit2.Callback;
-import retrofit2.Response;
-import retrofit2.Retrofit;
-import retrofit2.converter.gson.GsonConverterFactory;
+
+import com.android.volley.VolleyError;
+
+import okhttp3.Call;
+import okhttp3.Callback;
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
 
 public class MainPageActivity extends AppCompatActivity {
 
@@ -67,8 +74,6 @@ public class MainPageActivity extends AppCompatActivity {
         btnAddGoal = findViewById(R.id.btnAddGoal);
         btnCollection = findViewById(R.id.btnCollection);
 
-        fetchGoalsFromApi();
-
         btnPrevGoal.setOnClickListener(v -> {
             if (!goalList.isEmpty()) {
                 currentGoalIndex = (currentGoalIndex - 1 + goalList.size()) % goalList.size();
@@ -111,31 +116,34 @@ public class MainPageActivity extends AppCompatActivity {
         btnCollection.setOnClickListener(v -> startActivity(new Intent(MainPageActivity.this, CollectionActivity.class)));
     }
 
+
+
     // ---------------- API 调用 ----------------
-    private void fetchGoalsFromApi() {
-        Retrofit retrofit = new Retrofit.Builder()
-                .baseUrl("http://10.0.2.2:8080/") // 模拟器访问本地服务
-                .addConverterFactory(GsonConverterFactory.create())
-                .build();
-
-        ApiService apiService = retrofit.create(ApiService.class);
-        Call<List<ApiGoal>> call = apiService.getUserGoals(1); // userId = 1
-        call.enqueue(new Callback<List<ApiGoal>>() {
-            @Override
-            public void onResponse(Call<List<ApiGoal>> call, Response<List<ApiGoal>> response) {
-                if (response.isSuccessful() && response.body() != null) {
-                    updateGoalList(response.body());
-                } else {
-                    Toast.makeText(MainPageActivity.this, "API returned empty or error", Toast.LENGTH_SHORT).show();
-                }
-            }
-
-            @Override
-            public void onFailure(Call<List<ApiGoal>> call, Throwable t) {
-                Toast.makeText(MainPageActivity.this, "Failed to fetch goals: " + t.getMessage(), Toast.LENGTH_LONG).show();
-            }
-        });
-    }
+//    private void fetchGoalsFromApi() {
+//        Retrofit retrofit = new Retrofit.Builder()
+//                .baseUrl("http://10.0.2.2:8080/") // 模拟器访问本地服务
+//                .addConverterFactory(GsonConverterFactory.create())
+//                .build();
+//
+//        ApiService apiService = retrofit.create(ApiService.class);
+//        Call<List<ApiGoal>> call = apiService.getUserGoals(1); // userId = 1
+//        call.enqueue(new Callback<List<ApiGoal>>() {
+//            @Override
+//            public void onResponse(Call<List<ApiGoal>> call, Response<List<ApiGoal>> response) {
+//                if (response.isSuccessful() && response.body() != null) {
+//                    updateGoalList(response.body());
+//                } else {
+//                    Toast.makeText(MainPageActivity.this, "API returned empty or error", Toast.LENGTH_SHORT).show();
+//                }
+//            }
+//
+//
+//            @Override
+//            public void onFailure(Call<List<ApiGoal>> call, Throwable t) {
+//                Toast.makeText(MainPageActivity.this, "Failed to fetch goals: " + t.getMessage(), Toast.LENGTH_LONG).show();
+//            }
+//        });
+//    }
 
     private void updateGoalList(List<ApiGoal> apiGoals) {
         goalList.clear();
@@ -232,8 +240,8 @@ public class MainPageActivity extends AppCompatActivity {
 
     // ---------------- Retrofit API ----------------
     public interface ApiService {
-        @retrofit2.http.GET("api/users/{userId}/goals")
-        Call<List<ApiGoal>> getUserGoals(@retrofit2.http.Path("userId") int userId);
+//        @retrofit2.http.GET("api/users/{userId}/goals")
+//        Call<List<ApiGoal>> getUserGoals(@retrofit2.http.Path("userId") int userId);
     }
 
     public static class ApiGoal {
