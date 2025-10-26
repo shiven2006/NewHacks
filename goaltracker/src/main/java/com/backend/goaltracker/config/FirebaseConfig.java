@@ -17,7 +17,7 @@ public class FirebaseConfig {
         try {
             // ✅ Check if Firebase is already initialized (prevents test errors)
             if (FirebaseApp.getApps().isEmpty()) {
-                ClassPathResource resource = new ClassPathResource("serviceAccountKey.json");
+                ClassPathResource resource = new ClassPathResource("goaltrack-95875-firebase-adminsdk-fbsvc-ccef1fb91e.json");
 
                 // ✅ Only initialize if the file exists (skip in tests)
                 if (resource.exists()) {
