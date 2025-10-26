@@ -34,7 +34,6 @@ public class Subgoal {
         this.description = description;
         this.title = title;
         this.isCompleted = false;
-        // this.deadline = null;
     }
 
     /**
