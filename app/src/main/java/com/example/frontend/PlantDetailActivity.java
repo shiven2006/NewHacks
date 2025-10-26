@@ -48,10 +48,11 @@ public class PlantDetailActivity extends AppCompatActivity {
 
         // Get goal title passed from MainPageActivity
         String goalTitle = getIntent().getStringExtra("GOAL_TITLE");
-        if (goalTitle != null) {
+        if (goalTitle != null && !goalTitle.isEmpty()) {
             fetchGoalByTitle(goalTitle);
         } else {
             Toast.makeText(this, "Goal title missing", Toast.LENGTH_SHORT).show();
+            finish();
         }
     }
 
@@ -71,21 +72,23 @@ public class PlantDetailActivity extends AppCompatActivity {
             client.newCall(request).enqueue(new Callback() {
                 @Override
                 public void onFailure(Call call, IOException e) {
-                    runOnUiThread(() -> Toast.makeText(
-                            PlantDetailActivity.this,
-                            "Failed to load goal: " + e.getMessage(),
-                            Toast.LENGTH_SHORT).show()
-                    );
+                    runOnUiThread(() -> {
+                        Toast.makeText(
+                                PlantDetailActivity.this,
+                                "Failed to load goal: " + e.getMessage(),
+                                Toast.LENGTH_SHORT).show();
+                    });
                 }
 
                 @Override
                 public void onResponse(Call call, Response response) throws IOException {
                     if (!response.isSuccessful() || response.body() == null) {
-                        runOnUiThread(() -> Toast.makeText(
-                                PlantDetailActivity.this,
-                                "Failed to fetch goal from server",
-                                Toast.LENGTH_SHORT).show()
-                        );
+                        runOnUiThread(() -> {
+                            Toast.makeText(
+                                    PlantDetailActivity.this,
+                                    "Failed to fetch goal from server",
+                                    Toast.LENGTH_SHORT).show();
+                        });
                         response.close();
                         return;
                     }
