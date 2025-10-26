@@ -90,23 +90,5 @@
                 android:showDividers="middle" />
         </androidx.core.widget.NestedScrollView>
 
-        <!-- ✅ Confirm button -->
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnConfirmSubgoals"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:backgroundTint="#22C1B2"
-            android:fontFamily="sans-serif-medium"
-            android:text="Confirm Subgoals"
-            android:textAllCaps="false"
-            android:textColor="@android:color/white"
-            app:cornerRadius="12dp"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/subgoalsScroll"
-            app:rippleColor="@color/ripple_material_light" />
-
     </androidx.constraintlayout.widget.ConstraintLayout>
 </com.google.android.material.card.MaterialCardView>

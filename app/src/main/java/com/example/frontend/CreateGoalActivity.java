@@ -29,9 +29,18 @@ import com.google.android.material.card.MaterialCardView;
 
 import org.json.JSONException;
 
+import java.io.IOException;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
+
+import okhttp3.Call;
+import okhttp3.Callback;
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
 
 public class CreateGoalActivity extends AppCompatActivity {
 
@@ -59,22 +68,38 @@ public class CreateGoalActivity extends AppCompatActivity {
         sendMessageButton.setOnClickListener(new View.OnClickListener(){
             public void onClick(View v) {
                 if (!_editTextBox.getText().toString().isEmpty()) {
-                    SendMessage(_editTextBox.getText().toString());
-                    _apiInteractor.GenerateMainGoal(_editTextBox.getText().toString())
-                            .thenAccept(body -> runOnUiThread(() ->
-                                    {
-                                        try {
-                                            GenerateResponse("Sure! Here are the subgoals of the goal you provided!", MainGoalModel.ParseJSON(body));
-                                        } catch (JSONException e) {
-                                            throw new RuntimeException(e);
-                                        } catch (ParseException e) {
-                                            throw new RuntimeException(e);
-                                        }
-                                    }
-                            ))
-                            .exceptionally(e -> { runOnUiThread(() ->
-                                    CreateNewResponseErrorMessageBox()
-                            ); return null; });
+                    String input = _editTextBox.getText().toString();
+                    SendMessage(input);
+                    OkHttpClient client = new OkHttpClient();
+                    MediaType JSON = MediaType.get("application/json; charset=utf-8");
+                    String jsonBody = "{ \"prompt\": \"" + input + "\" }";
+                    RequestBody body = RequestBody.create(jsonBody, JSON);
+                    Request request = new Request.Builder()
+                            .url("http://10.0.2.2:8080/api/goals/generate")
+                            .post(body)
+                            .addHeader("Content-Type", "application/json")
+                            .build();
+
+                    client.newCall(request).enqueue(new Callback() {
+                        @Override
+                        public void onFailure(Call call, IOException e) {
+                            GenerateResponseError();
+                        }
+
+                        @Override
+                        public void onResponse(Call call, Response response) throws IOException {
+                            String responseBody = response.body().string();
+                            runOnUiThread(() -> {
+                                try {
+                                    GenerateResponse("Here are the subgoals for your goal", MainGoalModel.ParseJSON(responseBody), input);
+                                } catch (JSONException e) {
+                                    throw new RuntimeException(e);
+                                } catch (ParseException e) {
+                                    throw new RuntimeException(e);
+                                }
+                            });
+                        }
+                    });
                 }
             }
         });
@@ -90,8 +115,8 @@ public class CreateGoalActivity extends AppCompatActivity {
         _messagesScroll.post(() -> _messagesScroll.smoothScrollTo(0, _messagesContainer.getBottom()));
     }
 
-    private void GenerateResponse(String response, MainGoalModel mainGoalModel) {
-        ConstraintLayout messageBox = CreateNewResponseMessageBox(response, mainGoalModel);
+    private void GenerateResponse(String response, MainGoalModel mainGoalModel, String userInput) {
+        ConstraintLayout messageBox = CreateNewResponseMessageBox(response, mainGoalModel, userInput);
         AlignMessage(messageBox, false);
         _previousMessages.add(messageBox);
         _messagesScroll.post(() -> _messagesScroll.smoothScrollTo(0, _messagesContainer.getBottom()));
@@ -125,7 +150,7 @@ public class CreateGoalActivity extends AppCompatActivity {
         return messageBoxResponseError;
     }
 
-    private ConstraintLayout CreateNewResponseMessageBox(String messageInput, MainGoalModel mainGoalModel) {
+    private ConstraintLayout CreateNewResponseMessageBox(String messageInput, MainGoalModel mainGoalModel, String userInput) {
         ConstraintLayout messageBox = (ConstraintLayout) _layoutInflater.inflate(R.layout.message_response,
                 _messagesContainer, false);
         messageBox.setId(View.generateViewId());
@@ -139,21 +164,34 @@ public class CreateGoalActivity extends AppCompatActivity {
         });
         tryAgainButton.setOnClickListener(new View.OnClickListener(){
             public void onClick(View v) {
-                _apiInteractor.GenerateMainGoal(_editTextBox.getText().toString())
-                        .thenAccept(body -> runOnUiThread(() ->
-                                {
-                                    try {
-                                        GenerateResponse("Sure! Here are the subgoals of the goal you provided!", MainGoalModel.ParseJSON(body));
-                                    } catch (JSONException e) {
-                                        throw new RuntimeException(e);
-                                    } catch (ParseException e) {
-                                        throw new RuntimeException(e);
-                                    }
-                                }
-                        ))
-                        .exceptionally(e -> { runOnUiThread(() ->
-                                Toast.makeText(CreateGoalActivity.this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show()
-                        ); return null; });
+                OkHttpClient client = new OkHttpClient();
+                MediaType JSON = MediaType.get("application/json; charset=utf-8");
+                String jsonBody = "{ \"prompt\": \"" + userInput + "\" }";
+                RequestBody body = RequestBody.create(jsonBody, JSON);
+                Request request = new Request.Builder()
+                        .url("http://10.0.2.2:8080/api/goals/generate")
+                        .post(body)
+                        .addHeader("Content-Type", "application/json")
+                        .build();
+
+                client.newCall(request).enqueue(new Callback() {
+                    @Override
+                    public void onFailure(Call call, IOException e) {
+                        GenerateResponseError();
+                    }
+
+                    @Override
+                    public void onResponse(Call call, Response response) throws IOException {
+                        String responseBody = response.body().string();
+                        runOnUiThread(() -> {
+                            try {
+                                GenerateResponse("Here is the new version", MainGoalModel.ParseJSON(responseBody), userInput);
+                            } catch (JSONException e) {
+                            } catch (ParseException e) {
+                            }
+                        });
+                    }
+                });
             }
         });
         messageBoxTextView.setText(messageInput);
@@ -227,6 +265,7 @@ public class CreateGoalActivity extends AppCompatActivity {
         View rootView = findViewById(android.R.id.content);
         _subgoalsPopupWindow.showAtLocation(rootView, Gravity.CENTER, 0, 0);
     }
+
 
     private void CloseSubGoalsPopUp() {
         _subgoalsPopupWindow.dismiss();

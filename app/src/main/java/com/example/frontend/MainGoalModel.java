@@ -45,10 +45,9 @@ public class MainGoalModel {
         model.id = Integer.parseInt(object.getString("id"));
         model.title = object.getString("title");
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
-        model.createdAt = sdf.parse(object.getString("createdAt"));
         model.deadline = sdf.parse(object.getString("deadline"));
-        model.numTotalSubgoals = Integer.parseInt(object.getString("numTotalSubgoals"));
-        model.numCompletedSubgoals = 0;
+//        model.numTotalSubgoals = Integer.parseInt(object.getString("numTotalSubgoals"));
+//        model.numCompletedSubgoals = 0;
         JSONArray array = object.getJSONArray("subgoals");
         model.subgoalsList = new ArrayList<>();
         for (int i = 0; i < array.length(); i++) {
