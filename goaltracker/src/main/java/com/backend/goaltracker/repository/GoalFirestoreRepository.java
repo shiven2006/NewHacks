@@ -83,6 +83,44 @@ public class GoalFirestoreRepository {
         }
     }
 
+
+    /**
+     * Get a specific subgoal by goalId and subgoalId.
+     */
+    public Subgoal getSubgoal(int goalId, String subgoalTitle) {
+        Goal goal = getGoalById(goalId);
+        if (goal == null || goal.getSubgoals() == null) {
+            return null;
+        }
+
+        for (Subgoal sub : goal.getSubgoals()) {
+            // Use hashCode as ID if that's how IDs are generated
+            if (sub.getTitle().equals(subgoalTitle)) {
+                return sub;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Mark a subgoal as completed.
+     * Returns true if successfully updated, false otherwise.
+     */
+    public boolean markSubgoalComplete(int goalId, String subgoalTitle, boolean completed) {
+        Goal goal = getGoalById(goalId);
+        if (goal == null || goal.getSubgoals() == null) return false;
+
+        for (Subgoal sub : goal.getSubgoals()) {
+            if (sub.getTitle().equals(subgoalTitle)) {
+                sub.setCompleted(completed);
+                updateGoal(goal);  // Save updated goal to Firestore
+                return true;
+            }
+        }
+        return false;
+    }
+
+
     /**
      * Get all goals from Firestore
      */
@@ -269,4 +307,6 @@ public class GoalFirestoreRepository {
 
         return goal;
     }
+
+
 }

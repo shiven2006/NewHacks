@@ -169,6 +169,43 @@ public class GoalController {
     }
 
     /**
+     * whenever user clicks check box in the client side, the subgoal gets marked as complete.
+     */
+
+    @PatchMapping("/{goalId}/subgoals/complete")
+    public ResponseEntity<?> markSubgoalComplete(
+            @PathVariable int goalId,
+            @RequestBody Map<String, Object> request
+    ) {
+        String title = (String) request.get("title");
+        boolean completed = (Boolean) request.getOrDefault("completed", true);
+
+        if (title == null || title.isEmpty()) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("success", false, "message", "Subgoal title is required"));
+        }
+
+        try {
+            boolean updated = goalRepository.markSubgoalComplete(goalId, title, completed);
+            if (!updated) {
+                return ResponseEntity.ok(Map.of("success", false, "message", "Subgoal not found"));
+            }
+
+            Subgoal updatedSubgoal = goalRepository.getSubgoal(goalId, title);
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "subgoal", updatedSubgoal
+            ));
+
+        } catch (Exception e) {
+            System.err.println("Failed to update subgoal: " + e.getMessage());
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("success", false, "message", e.getMessage()));
+        }
+    }
+
+
+    /**
      * Get a goal by ID from Firebase
      */
     @GetMapping("/{id}")
@@ -204,6 +241,22 @@ public class GoalController {
                     .body(Map.of("error", "Failed to delete goal", "message", e.getMessage()));
         }
     }
+
+    /**
+     * Save the main goal with the corresponding sub goals
+     */
+    @PostMapping("/{id}")
+    public ResponseEntity<Boolean> saveChanges(@RequestBody Goal goal) {
+        try {
+            goalRepository.saveGoal(goal); // saveGoal throws exception if it fails
+            return ResponseEntity.ok(true); // success
+        } catch (Exception e) {
+            System.err.println("Failed to save goal: " + e.getMessage());
+            return ResponseEntity.ok(false); // failure
+        }
+    }
+
+
 
     private Goal convertToGoalEntity(GoalResponseDTO dto) {
         LocalDate deadline;
