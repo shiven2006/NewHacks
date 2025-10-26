@@ -1,47 +1,36 @@
 package entities;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import entities.Goal;
-import java.time.LocalDate;
-import java.util.Date;
 
 public class Subgoal {
     private int goalId;
 
-    @JsonIgnore  // ✅ ADD THIS - Prevents circular reference in JSON
+    @JsonIgnore  // ✅ Prevents circular reference in JSON
     private Goal originalGoal;
 
     private String title;
     private String description;
-    private boolean isCompleted;
+    private boolean isCompleted;  // ✅ Changed from public to private
 
-    // Constructor
+    // Constructors
     /**
      * Default constructor.
-     * Initializes a Subgoal with default values.
      */
     public Subgoal() {
         this.isCompleted = false;
-        // this.deadline = null;
     }
 
     /**
      * Constructor for a simple subgoal without deadline.
-     * @param title       short title of the subgoal
-     * @param description description of the subgoal
      */
     public Subgoal(String title, String description) {
-        this.description = description;
         this.title = title;
+        this.description = description;
         this.isCompleted = false;
     }
 
     /**
-     * Full constructor for creating a subgoal with all fields.
-     *
-     * @param goalId      ID of the parent goal
-     * @param title       title of the subgoal
-     * @param description description of the subgoal
+     * Full constructor.
      */
     public Subgoal(int goalId, String title, String description) {
         this.goalId = goalId;
@@ -50,8 +39,7 @@ public class Subgoal {
         this.isCompleted = false;
     }
 
-    // Getters & setters
-
+    // Getters & Setters
     public int getGoalId() {
         return goalId;
     }
@@ -60,15 +48,11 @@ public class Subgoal {
         this.goalId = goalId;
     }
 
-    public void setOriginalGoal(Goal originalGoal) {
-        this.originalGoal = originalGoal;
-    }
-
     public Goal getOriginalGoal() {
         return originalGoal;
     }
 
-    public void getOriginalGoal(Goal originalGoal) {
+    public void setOriginalGoal(Goal originalGoal) {
         this.originalGoal = originalGoal;
     }
 
@@ -88,28 +72,38 @@ public class Subgoal {
         this.description = description;
     }
 
-    public boolean getIsCompleted() {
+    // ✅ Fixed: Proper getter name for boolean
+    public boolean isCompleted() {
         return isCompleted;
     }
 
-
-    /**public LocalDate getDeadline() {
-     return deadline;
-     }
-
-     public void setDeadline(LocalDate deadline) {
-     this.deadline = deadline;
-     }
-     */
+    // ✅ Fixed: Better setter that doesn't modify originalGoal
+    public void setCompleted(boolean completed) {
+        this.isCompleted = completed;
+        // Only remove from original goal if it exists and is being marked complete
+        if (completed && this.originalGoal != null) {
+            this.originalGoal.removeSubgoal(this);
+        }
+    }
 
     /**
      * Marks this subgoal as completed.
      */
-    public void markComplete() {
-        this.isCompleted = true;
-        this.originalGoal.removeSubgoal(this);
+    public void markCompleted() {
+        setCompleted(true);
     }
 
+    @Override
+    public String toString() {
+        return "Subgoal{" +
+                "goalId=" + goalId +
+                ", title='" + title + '\'' +
+                ", description='" + description + '\'' +
+                ", isCompleted=" + isCompleted +
+                '}';
+    }
 
+    public boolean getIsCompleted() {
+        return isCompleted;
+    }
 }
-

@@ -1,5 +1,6 @@
 package com.backend.goaltracker.controller;
 
+import com.backend.goaltracker.repository.GoalFirestoreRepository;
 import com.backend.goaltracker.service.GeminiService;
 import com.backend.goaltracker.util.PromptValidator;
 import com.backend.goaltracker.util.GoalResponseValidator;
@@ -31,6 +32,9 @@ public class GoalController {
 
     @Autowired
     private GoalResponseValidator responseValidator;
+
+    @Autowired
+    private GoalFirestoreRepository goalRepository;  // ✅ Inject Firebase repository
 
     @PostMapping("/generate")
     public ResponseEntity<?> generateGoal(@RequestBody Map<String, String> request) {
@@ -64,9 +68,8 @@ public class GoalController {
             JsonNode root = mapper.readTree(jsonResponse);
 
             System.out.println("=== Parsing Gemini Response ===");
-            System.out.println("Full response tree: " + root.toPrettyString());
 
-            // ✅ Extract text from Gemini API response
+            // Extract text from Gemini API response
             JsonNode candidatesNode = root.path("candidates");
             if (candidatesNode.isMissingNode() || candidatesNode.isEmpty()) {
                 return ResponseEntity.internalServerError()
@@ -94,7 +97,7 @@ public class GoalController {
 
             System.out.println("Extracted text: " + textOutput);
 
-            // ✅ Clean the response (remove markdown code blocks if present)
+            // Clean the response
             String cleanedJson = textOutput.trim();
             if (cleanedJson.startsWith("```json")) {
                 cleanedJson = cleanedJson.substring(7);
@@ -109,7 +112,7 @@ public class GoalController {
 
             System.out.println("Cleaned JSON: " + cleanedJson);
 
-            // ✅ Parse the structured JSON into DTO
+            // Parse the structured JSON into DTO
             GoalResponseDTO dto = mapper.readValue(cleanedJson, GoalResponseDTO.class);
             System.out.println("Parsed DTO - Title: " + dto.title + ", Subgoals: " + dto.subgoals.size());
 
@@ -125,6 +128,18 @@ public class GoalController {
 
             // ✅ STEP 4: Convert DTO into Goal entity
             Goal goal = convertToGoalEntity(dto);
+
+            // ✅ STEP 5: Save to Firebase
+            try {
+                goal = goalRepository.saveGoal(goal);
+                System.out.println("Goal saved to Firebase successfully");
+            } catch (Exception e) {
+                System.err.println("Failed to save to Firebase: " + e.getMessage());
+                // Still return the goal even if Firebase save fails
+                return ResponseEntity.ok()
+                        .header("X-Firebase-Warning", "Goal generated but not saved to Firebase")
+                        .body(goal);
+            }
 
             System.out.println("=== Goal Generation Successful ===");
             return ResponseEntity.ok(goal);
@@ -154,16 +169,47 @@ public class GoalController {
     }
 
     /**
-     * Convert validated DTO to Goal entity
-     * This method now receives a validated DTO with guaranteed fields
+     * Get a goal by ID from Firebase
      */
+    @GetMapping("/{id}")
+    public ResponseEntity<?> getGoal(@PathVariable int id) {
+        try {
+            Goal goal = goalRepository.getGoalById(id);
+
+            if (goal == null) {
+                return ResponseEntity.notFound().build();
+            }
+
+            return ResponseEntity.ok(goal);
+
+        } catch (Exception e) {
+            System.err.println("Error fetching goal: " + e.getMessage());
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("error", "Failed to fetch goal", "message", e.getMessage()));
+        }
+    }
+
+    /**
+     * Delete a goal by ID from Firebase
+     */
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> deleteGoal(@PathVariable int id) {
+        try {
+            goalRepository.deleteGoal(id);
+            return ResponseEntity.ok(Map.of("message", "Goal deleted successfully"));
+
+        } catch (Exception e) {
+            System.err.println("Error deleting goal: " + e.getMessage());
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("error", "Failed to delete goal", "message", e.getMessage()));
+        }
+    }
+
     private Goal convertToGoalEntity(GoalResponseDTO dto) {
-        // Parse deadline (already validated and in ISO format from validator)
         LocalDate deadline;
         try {
             deadline = LocalDate.parse(dto.deadline);
         } catch (Exception e) {
-            // Fallback (should rarely happen due to validator)
             try {
                 DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
                 deadline = LocalDate.parse(dto.deadline, formatter);
