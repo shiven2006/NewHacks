@@ -38,7 +38,7 @@ public class GoalResponseValidator {
         }
 
         // Validate each subgoal
-        for (SubgoalDTO subgoal : dto.subgoals) {
+        for (GoalResponseDTO.SubgoalDTO subgoal : dto.subgoals) {
             if (subgoal.title == null || subgoal.title.trim().isEmpty()) {
                 throw new IllegalArgumentException("Subgoal title cannot be empty");
             }

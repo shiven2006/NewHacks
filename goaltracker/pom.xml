@@ -53,6 +53,32 @@
 			<version>9.2.0</version>
 		</dependency>
 
+		<!-- ✅ Google Cloud Firestore -->
+		<dependency>
+			<groupId>com.google.cloud</groupId>
+			<artifactId>google-cloud-firestore</artifactId>
+			<version>3.14.0</version>
+		</dependency>
+
+		<!-- ✅✅✅ gRPC dependencies (REQUIRED - these were missing!) -->
+		<dependency>
+			<groupId>io.grpc</groupId>
+			<artifactId>grpc-netty-shaded</artifactId>
+			<version>1.58.0</version>
+		</dependency>
+
+		<dependency>
+			<groupId>io.grpc</groupId>
+			<artifactId>grpc-protobuf</artifactId>
+			<version>1.58.0</version>
+		</dependency>
+
+		<dependency>
+			<groupId>io.grpc</groupId>
+			<artifactId>grpc-stub</artifactId>
+			<version>1.58.0</version>
+		</dependency>
+
 		<!-- ✅ Lombok (optional but recommended for entities) -->
 		<dependency>
 			<groupId>org.projectlombok</groupId>
@@ -88,7 +114,6 @@
 			<artifactId>h2</artifactId>
 			<scope>test</scope>
 		</dependency>
-
 
 	</dependencies>
 

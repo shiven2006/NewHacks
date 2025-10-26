@@ -7,7 +7,6 @@ import com.backend.goaltracker.util.GoalResponseValidator;
 import entities.Goal;
 import entities.GoalResponseDTO;
 import entities.Subgoal;
-import entities.SubgoalDTO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -174,7 +173,7 @@ public class GoalController {
      * ✅ NEW: Get all goals from Firebase
      * This allows the frontend to display a list of all goals
      */
-    @GetMapping
+    @GetMapping("/")
     public ResponseEntity<?> getAllGoals() {
         try {
             List<Goal> goals = goalRepository.getAllGoals();
@@ -184,29 +183,6 @@ public class GoalController {
             e.printStackTrace();
             return ResponseEntity.internalServerError()
                     .body(Map.of("error", "Failed to fetch goals", "message", e.getMessage()));
-        }
-    }
-
-    /**
-     * ✅ Get a goal by ID from Firebase
-     * Note: You can also add a /by-title/{title} endpoint if preferred
-     */
-    @GetMapping("/{id}")
-    public ResponseEntity<?> getGoal(@PathVariable int id) {
-        try {
-            Goal goal = goalRepository.getGoalById(id);
-
-            if (goal == null) {
-                return ResponseEntity.notFound().build();
-            }
-
-            return ResponseEntity.ok(goal);
-
-        } catch (Exception e) {
-            System.err.println("Error fetching goal: " + e.getMessage());
-            e.printStackTrace();
-            return ResponseEntity.internalServerError()
-                    .body(Map.of("error", "Failed to fetch goal", "message", e.getMessage()));
         }
     }
 
@@ -716,7 +692,20 @@ public class GoalController {
         }
     }
 
+    /**
+     * ✅ FIXED: Convert DTO to Goal entity
+     * DO NOT set ID here - let the repository generate it
+     */
     private Goal convertToGoalEntity(GoalResponseDTO dto) {
+        Goal goal = new Goal();
+
+        // ✅ DON'T set ID - let repository handle it
+        // The ID from Gemini ("1") is just a placeholder
+
+        goal.setTitle(dto.title);
+        goal.setDescription(dto.description);
+
+        // Parse deadline with fallback
         LocalDate deadline;
         try {
             deadline = LocalDate.parse(dto.deadline);
@@ -725,22 +714,21 @@ public class GoalController {
                 DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
                 deadline = LocalDate.parse(dto.deadline, formatter);
             } catch (Exception e2) {
-                deadline = LocalDate.now().plusMonths(1);
+                System.err.println("Failed to parse deadline: " + dto.deadline);
+                deadline = LocalDate.now().plusMonths(2);
             }
         }
-
-        Goal goal = new Goal();
-        goal.setId(Integer.parseInt(dto.id));
-        goal.setTitle(dto.title);
-        goal.setDescription(dto.description);
         goal.setDeadline(deadline);
 
-        for (SubgoalDTO sgDto : dto.subgoals) {
-            Subgoal subgoal = new Subgoal();
-            subgoal.setGoalId(goal.getId());
-            subgoal.setTitle(sgDto.title);
-            subgoal.setDescription(sgDto.description);
-            goal.addSubgoal(subgoal);
+        // Add subgoals (without goalId yet - repository will set it)
+        if (dto.subgoals != null) {
+            for (GoalResponseDTO.SubgoalDTO sgDto : dto.subgoals) {
+                Subgoal subgoal = new Subgoal();
+                subgoal.setTitle(sgDto.title);
+                subgoal.setDescription(sgDto.description);
+                subgoal.setCompleted(false);
+                goal.addSubgoal(subgoal);
+            }
         }
 
         return goal;

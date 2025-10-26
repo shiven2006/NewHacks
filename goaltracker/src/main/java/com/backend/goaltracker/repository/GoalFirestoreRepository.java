@@ -23,16 +23,43 @@ public class GoalFirestoreRepository {
      */
     public Goal saveGoal(Goal goal) {
         try {
-            // Generate unique ID if not set
-            if (goal.getId() == 0 || goal.getId() == 0) {
+            // ✅ Generate unique ID if not set - FIX: Check for null separately
+            if (goal.getId() == null) {
+                // Use Firestore auto-generated ID
                 DocumentReference docRef = firestore.collection(GOALS_COLLECTION).document();
-                goal.setId(docRef.getId().hashCode()); // Use hashcode for numeric ID
+                String firestoreId = docRef.getId();
+
+                // Convert to a stable integer ID (use absolute value to avoid negatives)
+                int numericId = Math.abs(firestoreId.hashCode());
+
+                // Ensure it's not zero
+                if (numericId == 0) {
+                    numericId = (int) (System.currentTimeMillis() % Integer.MAX_VALUE);
+                }
+
+                goal.setId(numericId);
+                System.out.println("Generated new goal ID: " + numericId);
+            } else if (goal.getId() == 0) {
+                // If someone explicitly set it to 0, generate a new one
+                int numericId = Math.abs(UUID.randomUUID().hashCode());
+                if (numericId == 0) {
+                    numericId = (int) (System.currentTimeMillis() % Integer.MAX_VALUE);
+                }
+                goal.setId(numericId);
+                System.out.println("Replaced zero ID with: " + numericId);
+            }
+
+            // ✅ Set goalId for all subgoals AFTER we have a valid goal ID
+            if (goal.getSubgoals() != null) {
+                for (Subgoal subgoal : goal.getSubgoals()) {
+                    subgoal.setGoalId(goal.getId());
+                }
             }
 
             // Convert Goal to Map for Firestore
             Map<String, Object> goalData = convertGoalToMap(goal);
 
-            // Save to Firestore
+            // Save to Firestore using the numeric ID as document ID
             String docId = String.valueOf(goal.getId());
             DocumentReference docRef = firestore.collection(GOALS_COLLECTION).document(docId);
 
@@ -71,9 +98,11 @@ public class GoalFirestoreRepository {
 
             // Convert Firestore document to Goal object
             Goal goal = convertMapToGoal(document.getData());
-            goal.setId(id);
+            if (goal != null) {
+                goal.setId(id);
+            }
 
-            System.out.println("✅ Goal retrieved from Firestore: " + goal.getTitle());
+            System.out.println("✅ Goal retrieved from Firestore: " + (goal != null ? goal.getTitle() : "null"));
             return goal;
 
         } catch (InterruptedException | ExecutionException e) {
@@ -83,9 +112,8 @@ public class GoalFirestoreRepository {
         }
     }
 
-
     /**
-     * Get a specific subgoal by goalId and subgoalId.
+     * Get a specific subgoal by goalId and subgoalTitle.
      */
     public Subgoal getSubgoal(int goalId, String subgoalTitle) {
         Goal goal = getGoalById(goalId);
@@ -94,7 +122,6 @@ public class GoalFirestoreRepository {
         }
 
         for (Subgoal sub : goal.getSubgoals()) {
-            // Use hashCode as ID if that's how IDs are generated
             if (sub.getTitle().equals(subgoalTitle)) {
                 return sub;
             }
@@ -108,12 +135,19 @@ public class GoalFirestoreRepository {
     public List<Goal> getAllGoals() throws Exception {
         List<Goal> goals = new ArrayList<>();
 
-        ApiFuture<QuerySnapshot> future = firestore.collection("goals").get();
+        ApiFuture<QuerySnapshot> future = firestore.collection(GOALS_COLLECTION).get();
         List<QueryDocumentSnapshot> documents = future.get().getDocuments();
 
         for (QueryDocumentSnapshot document : documents) {
-            Goal goal = document.toObject(Goal.class);
-            goals.add(goal);
+            try {
+                Goal goal = convertMapToGoal(document.getData());
+                if (goal != null) {
+                    goals.add(goal);
+                }
+            } catch (Exception e) {
+                System.err.println("⚠️ Failed to parse goal from document: " + document.getId());
+                e.printStackTrace();
+            }
         }
 
         System.out.println("Retrieved " + goals.size() + " goals from Firebase");
@@ -129,7 +163,7 @@ public class GoalFirestoreRepository {
         }
 
         // Query Firestore for goals with matching title
-        ApiFuture<QuerySnapshot> future = firestore.collection("goals")
+        ApiFuture<QuerySnapshot> future = firestore.collection(GOALS_COLLECTION)
                 .whereEqualTo("title", title)
                 .get();
 
@@ -144,11 +178,10 @@ public class GoalFirestoreRepository {
             System.out.println("Warning: Multiple goals found with title: " + title + ". Returning first one.");
         }
 
-        Goal goal = documents.get(0).toObject(Goal.class);
+        Goal goal = convertMapToGoal(documents.get(0).getData());
         System.out.println("Found goal with title: " + title);
         return goal;
     }
-
 
     /**
      * Mark a subgoal as completed.
@@ -156,18 +189,26 @@ public class GoalFirestoreRepository {
      */
     public boolean markSubgoalComplete(int goalId, String subgoalTitle, boolean completed) {
         Goal goal = getGoalById(goalId);
-        if (goal == null || goal.getSubgoals() == null) return false;
+        if (goal == null || goal.getSubgoals() == null) {
+            return false;
+        }
 
+        boolean found = false;
         for (Subgoal sub : goal.getSubgoals()) {
             if (sub.getTitle().equals(subgoalTitle)) {
                 sub.setCompleted(completed);
-                updateGoal(goal);  // Save updated goal to Firestore
-                return true;
+                found = true;
+                break;
             }
         }
+
+        if (found) {
+            updateGoal(goal);
+            return true;
+        }
+
         return false;
     }
-
 
     /**
      * Delete a goal by ID from Firestore
@@ -193,6 +234,10 @@ public class GoalFirestoreRepository {
      */
     public Goal updateGoal(Goal goal) {
         try {
+            if (goal.getId() == null) {
+                throw new IllegalArgumentException("Cannot update goal without ID");
+            }
+
             Map<String, Object> goalData = convertGoalToMap(goal);
             String docId = String.valueOf(goal.getId());
 
@@ -216,7 +261,14 @@ public class GoalFirestoreRepository {
      */
     private Map<String, Object> convertGoalToMap(Goal goal) {
         Map<String, Object> data = new HashMap<>();
-        data.put("id", goal.getId());
+
+        // ✅ Add null check for ID
+        if (goal.getId() != null) {
+            data.put("id", goal.getId());
+        } else {
+            throw new IllegalStateException("Goal ID cannot be null when saving to Firestore");
+        }
+
         data.put("title", goal.getTitle());
         data.put("description", goal.getDescription());
         data.put("deadline", goal.getDeadline() != null ? goal.getDeadline().toString() : null);
@@ -230,7 +282,7 @@ public class GoalFirestoreRepository {
                 subgoalMap.put("goalId", subgoal.getGoalId());
                 subgoalMap.put("title", subgoal.getTitle());
                 subgoalMap.put("description", subgoal.getDescription());
-                subgoalMap.put("completed", subgoal.isCompleted());  // ✅ Fixed method call
+                subgoalMap.put("completed", subgoal.isCompleted());
                 subgoalsList.add(subgoalMap);
             }
         }
@@ -249,7 +301,7 @@ public class GoalFirestoreRepository {
 
         Goal goal = new Goal();
 
-        // ✅ Handle ID safely
+        // Handle ID safely
         Object idObj = data.get("id");
         if (idObj != null) {
             if (idObj instanceof Number) {
@@ -258,20 +310,20 @@ public class GoalFirestoreRepository {
                 try {
                     goal.setId(Integer.parseInt((String) idObj));
                 } catch (NumberFormatException e) {
-                    goal.setId(idObj.hashCode());
+                    goal.setId(Math.abs(idObj.hashCode()));
                 }
             }
         }
 
-        // ✅ Handle title safely
+        // Handle title safely
         Object titleObj = data.get("title");
         goal.setTitle(titleObj != null ? titleObj.toString() : "Untitled Goal");
 
-        // ✅ Handle description safely
+        // Handle description safely
         Object descObj = data.get("description");
         goal.setDescription(descObj != null ? descObj.toString() : "No description");
 
-        // ✅ Handle deadline safely
+        // Handle deadline safely
         Object deadlineObj = data.get("deadline");
         if (deadlineObj != null) {
             try {
@@ -282,7 +334,7 @@ public class GoalFirestoreRepository {
             }
         }
 
-        // ✅ Handle subgoals safely
+        // Handle subgoals safely
         Object subgoalsObj = data.get("subgoals");
         if (subgoalsObj instanceof List) {
             @SuppressWarnings("unchecked")
@@ -292,21 +344,21 @@ public class GoalFirestoreRepository {
                 try {
                     Subgoal subgoal = new Subgoal();
 
-                    // ✅ Handle goalId
+                    // Handle goalId
                     Object goalIdObj = subgoalMap.get("goalId");
                     if (goalIdObj instanceof Number) {
                         subgoal.setGoalId(((Number) goalIdObj).intValue());
                     }
 
-                    // ✅ Handle title
+                    // Handle title
                     Object subTitleObj = subgoalMap.get("title");
                     subgoal.setTitle(subTitleObj != null ? subTitleObj.toString() : "Untitled Subgoal");
 
-                    // ✅ Handle description
+                    // Handle description
                     Object subDescObj = subgoalMap.get("description");
                     subgoal.setDescription(subDescObj != null ? subDescObj.toString() : "");
 
-                    // ✅ Handle completed status
+                    // Handle completed status
                     Object completedObj = subgoalMap.get("completed");
                     if (completedObj instanceof Boolean) {
                         subgoal.setCompleted((Boolean) completedObj);
@@ -318,13 +370,10 @@ public class GoalFirestoreRepository {
 
                 } catch (Exception e) {
                     System.err.println("⚠️ Failed to parse subgoal: " + e.getMessage());
-                    // Continue with next subgoal
                 }
             }
         }
 
         return goal;
     }
-
-
 }
