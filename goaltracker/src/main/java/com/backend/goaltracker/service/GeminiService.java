@@ -3,15 +3,8 @@ package com.backend.goaltracker.service;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
-import entities.Goal;
-import entities.Subgoal;
-import org.json.JSONArray;
-import org.json.JSONObject;
 
-import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -24,159 +17,86 @@ public class GeminiService {
     @Value("${gemini.api.url}")
     private String apiUrl;
 
-    private final RestTemplate restTemplate;
+    private final RestTemplate restTemplate = new RestTemplate();
 
-    public GeminiService() {
-        this.restTemplate = new RestTemplate();
-    }
 
-    /**
-     * Generates a structured SMART goal with subgoals using the Gemini API.
-     * @param userPrompt The user's raw goal description.
-     * @return A formatted JSON string representing the goal and subgoals.
-     */
     public String generateGoal(String userPrompt) {
-        System.out.println("=== GEMINI API CALL DEBUG ===");
-        System.out.println("API Key present: " + (apiKey != null && !apiKey.isEmpty()));
-        System.out.println("API URL: " + apiUrl);
-        System.out.println("User Prompt: " + userPrompt);
-
-        // ✅ Improved system prompt — ensures structured JSON output
-        String improvedPrompt = """
-You are an expert AI goal-setting assistant that creates structured, actionable goals.
-
-Your task:
-Given a user’s goal description, return a JSON object representing a "Goal" with realistic subgoals.
-
-Follow these strict instructions:
-
-1. Convert the goal description into a SMART goal (Specific, Measurable, Achievable, Relevant, Time-bound).
-2. Assign a reasonable **deadline** for the main goal in timestamp format (dd/mm/yyyy).
-3. Create 3–7 **subgoals** that break down the main goal into clear, trackable steps.
-4. Each subgoal must be part of a checked list (✓ before each title for clarity) and include:
-   - The same `id` as the main goal
-   - A short `title` summarizing the step
-   - A short, actionable `description`
-5. Return **only** the final structured JSON (no explanations, no markdown, no extra text).
-
-The JSON structure must exactly follow this format:
-
-{
-  "id": "<GOAL_ID>",
-  "title": "<Main goal title>",
-  "description": "<SMART goal description>",
-  "deadline": "<timestamp(dd/mm/yyyy)>",
-  "subgoals": [
-    {
-      "id": "<GOAL_ID>",
-      "title": "<Subgoal title>",
-      "description": "<Short actionable description>"
-    },...
-  ]
-}
-
-Goal description: "%s"
-""".formatted(userPrompt);
-
-
-        // ✅ Use improvedPrompt instead of raw userPrompt
-        Map<String, Object> requestBody = Map.of(
-                "contents", List.of(
-                        Map.of("parts", List.of(Map.of("text", improvedPrompt)))
-                )
-        );
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.setBearerAuth(apiKey);
-
-        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
+        if (userPrompt == null || userPrompt.isEmpty()) {
+            throw new IllegalArgumentException("Prompt cannot be empty");
+        }
 
         try {
-            System.out.println("Calling Gemini API...");
+            // Enhanced prompt for structured JSON output
+            String enhancedPrompt = "You are a goal planning assistant. Generate a structured goal with subgoals in JSON format.\n\n"
+                    + "User request: " + userPrompt + "\n\n"
+                    + "Return ONLY valid JSON in this exact format (no markdown, no extra text):\n"
+                    + "{\n"
+                    + "  \"id\": \"1\",\n"
+                    + "  \"title\": \"Main goal title\",\n"
+                    + "  \"description\": \"Detailed description\",\n"
+                    + "  \"deadline\": \"31/12/2024\",\n"
+                    + "  \"subgoals\": [\n"
+                    + "    {\n"
+                    + "      \"title\": \"Subgoal 1\",\n"
+                    + "      \"description\": \"Details\"\n"
+                    + "    }\n"
+                    + "  ]\n"
+                    + "}";
 
-            ResponseEntity<Map> response = restTemplate.exchange(
-                    apiUrl,
-                    HttpMethod.POST,
-                    entity,
-                    Map.class
+            // ✅ Correct Gemini API request format
+            Map<String, Object> requestBody = Map.of(
+                    "contents", List.of(
+                            Map.of(
+                                    "parts", List.of(
+                                            Map.of("text", enhancedPrompt)
+                                    )
+                            )
+                    ),
+                    "generationConfig", Map.of(
+                            "temperature", 0.2,
+                            "maxOutputTokens", 2000,
+                            "topP", 0.8,
+                            "topK", 40
+                    )
             );
 
-            Map<String, Object> body = response.getBody();
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
 
-            if (body == null) throw new RuntimeException("Empty response from Gemini");
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
 
-            String text = extractTextFromResponse(body);
-            System.out.println("=== Gemini Response ===");
-            System.out.println(text);
+            // ✅ Append API key to URL
+            String urlWithKey = apiUrl + "?key=" + apiKey;
 
-            return text;
+            System.out.println("=== Gemini API Request ===");
+            System.out.println("URL: " + apiUrl);
+            System.out.println("Prompt: " + userPrompt);
+            System.out.println("Request body: " + requestBody);
 
-        } catch (HttpClientErrorException e) {
-            System.err.println("Gemini API Error: " + e.getStatusCode());
-            System.err.println("Error details: " + e.getResponseBodyAsString());
-            throw new RuntimeException("Gemini API error: " + e.getResponseBodyAsString());
-        } catch (Exception e) {
-            System.err.println("Unexpected error: " + e.getMessage());
-            e.printStackTrace();
-            throw new RuntimeException("Failed to call Gemini API: " + e.getMessage());
-        }
-    }
+            // ✅ Send to Gemini API endpoint
+            ResponseEntity<String> response = restTemplate.postForEntity(urlWithKey, entity, String.class);
 
-    /**
-     * Safely extracts the generated text content from the Gemini response.
-     */
-    private String extractTextFromResponse(Map<String, Object> response) {
-        try {
-            List<Map<String, Object>> candidates = (List<Map<String, Object>>) response.get("candidates");
-            if (candidates == null || candidates.isEmpty()) return "No candidates found";
+            System.out.println("=== Gemini API Response ===");
+            System.out.println("Status: " + response.getStatusCode());
+            System.out.println("Body: " + response.getBody());
 
-            Map<String, Object> content = (Map<String, Object>) candidates.get(0).get("content");
-            if (content == null) return "No content found";
-
-            List<Map<String, Object>> parts = (List<Map<String, Object>>) content.get("parts");
-            if (parts == null || parts.isEmpty()) return "No parts found";
-
-            String text = (String) parts.getFirst().get("text");
-            return text != null ? text.trim() : "No text found";
-        } catch (Exception e) {
-            e.printStackTrace();
-            return "Error parsing response: " + e.getMessage();
-        }
-    }
-
-    private Goal parseGoalFromJson(String jsonText) {
-        try {
-            JSONObject obj = new JSONObject(jsonText);
-            Goal goal = new Goal();
-            goal.setId(Integer.parseInt(obj.getString("id")));
-            goal.setTitle(obj.getString("title"));
-            goal.setDescription(obj.getString("description"));
-
-            String deadlineStr = obj.optString("deadline", null);
-            if (deadlineStr != null && !deadlineStr.isEmpty()) {
-                goal.setDeadline(LocalDate.now()); // You can parse actual date here
+            // ✅ Check if response is successful
+            if (response.getStatusCode() != HttpStatus.OK) {
+                throw new RuntimeException("Gemini API returned status: " + response.getStatusCode());
             }
 
-            JSONArray subArray = obj.getJSONArray("subgoals");
-            List<Subgoal> subgoals = new ArrayList<>();
-
-            for (int i = 0; i < subArray.length(); i++) {
-                JSONObject s = subArray.getJSONObject(i);
-                Subgoal sg = new Subgoal();
-                sg.setGoalId(goal.getId());
-                sg.setGoalId(i + 1);
-                sg.setTitle(s.getString("title"));
-                sg.setDescription(s.getString("description"));
-                subgoals.add(sg);
+            if (response.getBody() == null || response.getBody().isEmpty()) {
+                throw new RuntimeException("Gemini API returned empty response");
             }
 
-            goal.setSubgoals(subgoals);
-            return goal;
+            return response.getBody();
 
         } catch (Exception e) {
+            System.err.println("=== Gemini API Error ===");
+            System.err.println("Error type: " + e.getClass().getName());
+            System.err.println("Error message: " + e.getMessage());
             e.printStackTrace();
-            throw new RuntimeException("Failed to parse Gemini response into Goal: " + e.getMessage());
+            throw new RuntimeException("Gemini API request failed: " + e.getMessage(), e);
         }
     }
 }

@@ -1,21 +1,19 @@
 package entities;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import entities.Goal;
 import java.time.LocalDate;
 import java.util.Date;
 
-/**
- * All current methods:
- * getters + setters for all variables,
- */
-
 public class Subgoal {
-    private int goalId;  // id of the Goal this is a subgoal of
-    private Goal originalGoal; // the goal it is a subgoal of
+    private int goalId;
+
+    @JsonIgnore  // ✅ ADD THIS - Prevents circular reference in JSON
+    private Goal originalGoal;
+
     private String title;
     private String description;
     private boolean isCompleted;
-    // private LocalDate deadline;
 
     // Constructor
     /**
@@ -61,6 +59,10 @@ public class Subgoal {
 
     public void setGoalId(int goalId) {
         this.goalId = goalId;
+    }
+
+    public void setOriginalGoal(Goal originalGoal) {
+        this.originalGoal = originalGoal;
     }
 
     public Goal getOriginalGoal() {

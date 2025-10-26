@@ -30,6 +30,7 @@ public class Goal {
         this.createdAt = LocalDate.now();
         this.subgoalsList = new ArrayList<>();
         this.isComplete = false;
+        this.numCompletedSubgoals = 0;
     }
 
     /**

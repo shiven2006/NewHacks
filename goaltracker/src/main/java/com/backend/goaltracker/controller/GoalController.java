@@ -1,15 +1,24 @@
 package com.backend.goaltracker.controller;
 
 import com.backend.goaltracker.service.GeminiService;
+import entities.Goal;
+import entities.GoalResponseDTO;
+import entities.Subgoal;
+import entities.SubgoalDTO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.HttpClientErrorException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.Map;
 
 @RestController
 @RequestMapping("/api/goals")
-@CrossOrigin(origins = "http://localhost:8080")
+@CrossOrigin("*")
 public class GoalController {
 
     @Autowired
@@ -19,33 +28,122 @@ public class GoalController {
     public ResponseEntity<?> generateGoal(@RequestBody Map<String, String> request) {
         String userPrompt = request.get("prompt");
 
-        System.out.println("Received prompt: " );
-
         if (userPrompt == null || userPrompt.isEmpty()) {
             return ResponseEntity.badRequest()
                     .body(Map.of("error", "Prompt is required"));
         }
 
         try {
-            System.out.println("Calling Gemini service...");  // ← Add this
-            String aiResponse = geminiService.generateGoal(userPrompt);
-            System.out.println("Got response: " + aiResponse);  // ← Add this
+            System.out.println("=== Goal Generation Started ===");
+            System.out.println("User prompt: " + userPrompt);
 
-            return ResponseEntity.ok(
-                    Map.of(
-                            "response", aiResponse,
-                            "prompt", userPrompt
-                    )
-            );
+            String jsonResponse = geminiService.generateGoal(userPrompt);
+
+            // Parse Gemini API response JSON
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode root = mapper.readTree(jsonResponse);
+
+            System.out.println("=== Parsing Gemini Response ===");
+            System.out.println("Full response tree: " + root.toPrettyString());
+
+            // ✅ Extract text from Gemini API response
+            JsonNode candidatesNode = root.path("candidates");
+            if (candidatesNode.isMissingNode() || candidatesNode.isEmpty()) {
+                return ResponseEntity.internalServerError()
+                        .body(Map.of("error", "No candidates in Gemini response"));
+            }
+
+            JsonNode contentNode = candidatesNode.get(0).path("content");
+            if (contentNode.isMissingNode()) {
+                return ResponseEntity.internalServerError()
+                        .body(Map.of("error", "No content in Gemini response"));
+            }
+
+            JsonNode partsNode = contentNode.path("parts");
+            if (partsNode.isMissingNode() || partsNode.isEmpty()) {
+                return ResponseEntity.internalServerError()
+                        .body(Map.of("error", "No parts in Gemini response"));
+            }
+
+            String textOutput = partsNode.get(0).path("text").asText();
+
+            if (textOutput == null || textOutput.isEmpty()) {
+                return ResponseEntity.internalServerError()
+                        .body(Map.of("error", "Empty text in Gemini response"));
+            }
+
+            System.out.println("Extracted text: " + textOutput);
+
+            // ✅ Clean the response (remove markdown code blocks if present)
+            String cleanedJson = textOutput.trim();
+            if (cleanedJson.startsWith("```json")) {
+                cleanedJson = cleanedJson.substring(7);
+            }
+            if (cleanedJson.startsWith("```")) {
+                cleanedJson = cleanedJson.substring(3);
+            }
+            if (cleanedJson.endsWith("```")) {
+                cleanedJson = cleanedJson.substring(0, cleanedJson.length() - 3);
+            }
+            cleanedJson = cleanedJson.trim();
+
+            System.out.println("Cleaned JSON: " + cleanedJson);
+
+            // ✅ Parse the structured JSON into DTO
+            GoalResponseDTO dto = mapper.readValue(cleanedJson, GoalResponseDTO.class);
+
+            System.out.println("Parsed DTO - Title: " + dto.title + ", Subgoals: " + dto.subgoals.size());
+
+            // ✅ Convert DTO into Goal entity
+            // Try multiple date formats since Gemini might return different formats
+            LocalDate deadline;
+            try {
+                // Try yyyy-MM-dd format first (ISO format)
+                deadline = LocalDate.parse(dto.deadline);
+            } catch (Exception e) {
+                // Fallback to dd/MM/yyyy format
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+                deadline = LocalDate.parse(dto.deadline, formatter);
+            }
+
+            Goal goal = new Goal();
+            goal.setId(Integer.parseInt(dto.id));
+            goal.setTitle(dto.title);
+            goal.setDescription(dto.description);
+            goal.setDeadline(deadline);
+
+            for (SubgoalDTO sgDto : dto.subgoals) {
+                Subgoal subgoal = new Subgoal();
+                subgoal.setGoalId(goal.getId());
+                subgoal.setTitle(sgDto.title);
+                subgoal.setDescription(sgDto.description);
+                goal.addSubgoal(subgoal);
+            }
+
+            System.out.println("=== Goal Generation Successful ===");
+            return ResponseEntity.ok(goal);
+
+        } catch (HttpClientErrorException e) {
+            System.err.println("=== Gemini API HTTP Error ===");
+            System.err.println("Status: " + e.getStatusCode());
+            System.err.println("Response: " + e.getResponseBodyAsString());
+
+            return ResponseEntity.status(e.getStatusCode())
+                    .body(Map.of(
+                            "error", "Gemini API Error",
+                            "status", e.getStatusCode().toString(),
+                            "details", e.getResponseBodyAsString()
+                    ));
         } catch (Exception e) {
-            System.err.println("ERROR: " + e.getMessage());  // ← Add this
-            e.printStackTrace();  // ← Add this to see full error
+            System.err.println("=== Unexpected Error ===");
+            e.printStackTrace();
 
-            return ResponseEntity.status(500)
-                    .body(Map.of("error", e.getMessage()));
+            return ResponseEntity.internalServerError()
+                    .body(Map.of(
+                            "error", "Internal server error",
+                            "message", e.getMessage(),
+                            "type", e.getClass().getSimpleName()
+                    ));
         }
     }
-
-
-
 }

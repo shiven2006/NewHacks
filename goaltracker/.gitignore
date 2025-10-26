@@ -33,4 +33,9 @@ build/
 .vscode/
 
 ### Ignore sensitive config ###
+*.json
+
 **/application.properties
+**/newhacks-476223-4a3e9d44800b.json
+**/google-services.json
+**/goaltrack-95875-firebase-adminsdk-fbsvc-ccef1fb91e.json
