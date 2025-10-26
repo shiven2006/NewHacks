@@ -103,6 +103,54 @@ public class GoalFirestoreRepository {
     }
 
     /**
+     * Get all goals from Firebase
+     */
+    public List<Goal> getAllGoals() throws Exception {
+        List<Goal> goals = new ArrayList<>();
+
+        ApiFuture<QuerySnapshot> future = firestore.collection("goals").get();
+        List<QueryDocumentSnapshot> documents = future.get().getDocuments();
+
+        for (QueryDocumentSnapshot document : documents) {
+            Goal goal = document.toObject(Goal.class);
+            goals.add(goal);
+        }
+
+        System.out.println("Retrieved " + goals.size() + " goals from Firebase");
+        return goals;
+    }
+
+    /**
+     * Get a goal by its title
+     */
+    public Goal getGoalByTitle(String title) throws Exception {
+        if (title == null || title.isEmpty()) {
+            throw new IllegalArgumentException("Title cannot be null or empty");
+        }
+
+        // Query Firestore for goals with matching title
+        ApiFuture<QuerySnapshot> future = firestore.collection("goals")
+                .whereEqualTo("title", title)
+                .get();
+
+        List<QueryDocumentSnapshot> documents = future.get().getDocuments();
+
+        if (documents.isEmpty()) {
+            System.out.println("No goal found with title: " + title);
+            return null;
+        }
+
+        if (documents.size() > 1) {
+            System.out.println("Warning: Multiple goals found with title: " + title + ". Returning first one.");
+        }
+
+        Goal goal = documents.get(0).toObject(Goal.class);
+        System.out.println("Found goal with title: " + title);
+        return goal;
+    }
+
+
+    /**
      * Mark a subgoal as completed.
      * Returns true if successfully updated, false otherwise.
      */
@@ -120,36 +168,6 @@ public class GoalFirestoreRepository {
         return false;
     }
 
-
-    /**
-     * Get all goals from Firestore
-     */
-    public List<Goal> getAllGoals() {
-        try {
-            ApiFuture<QuerySnapshot> future = firestore.collection(GOALS_COLLECTION).get();
-            List<QueryDocumentSnapshot> documents = future.get().getDocuments();
-
-            List<Goal> goals = new ArrayList<>();
-            for (QueryDocumentSnapshot document : documents) {
-                Goal goal = convertMapToGoal(document.getData());
-                // ✅ Use the stored ID instead of hashCode
-                Object idObj = document.getData().get("id");
-                if (idObj != null) {
-                    goal.setId(((Number) idObj).intValue());
-                } else {
-                    goal.setId(document.getId().hashCode());
-                }
-                goals.add(goal);
-            }
-
-            System.out.println("✅ Retrieved " + goals.size() + " goals from Firestore");
-            return goals;
-
-        } catch (InterruptedException | ExecutionException e) {
-            System.err.println("❌ Error fetching all goals: " + e.getMessage());
-            throw new RuntimeException("Failed to fetch goals from Firestore", e);
-        }
-    }
 
     /**
      * Delete a goal by ID from Firestore

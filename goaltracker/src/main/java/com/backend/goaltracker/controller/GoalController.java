@@ -15,8 +15,11 @@ import org.springframework.web.client.HttpClientErrorException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -34,7 +37,7 @@ public class GoalController {
     private GoalResponseValidator responseValidator;
 
     @Autowired
-    private GoalFirestoreRepository goalRepository;  // ✅ Inject Firebase repository
+    private GoalFirestoreRepository goalRepository;
 
     @PostMapping("/generate")
     public ResponseEntity<?> generateGoal(@RequestBody Map<String, String> request) {
@@ -132,13 +135,12 @@ public class GoalController {
             // ✅ STEP 5: Save to Firebase
             try {
                 goal = goalRepository.saveGoal(goal);
-                System.out.println("Goal saved to Firebase successfully");
+                System.out.println("Goal saved to Firebase successfully with ID: " + goal.getId());
             } catch (Exception e) {
                 System.err.println("Failed to save to Firebase: " + e.getMessage());
-                // Still return the goal even if Firebase save fails
-                return ResponseEntity.ok()
-                        .header("X-Firebase-Warning", "Goal generated but not saved to Firebase")
-                        .body(goal);
+                e.printStackTrace();
+                return ResponseEntity.internalServerError()
+                        .body(Map.of("error", "Failed to save goal to database", "message", e.getMessage()));
             }
 
             System.out.println("=== Goal Generation Successful ===");
@@ -169,44 +171,25 @@ public class GoalController {
     }
 
     /**
-     * whenever user clicks check box in the client side, the subgoal gets marked as complete.
+     * ✅ NEW: Get all goals from Firebase
+     * This allows the frontend to display a list of all goals
      */
-
-    @PatchMapping("/{goalId}/subgoals/complete")
-    public ResponseEntity<?> markSubgoalComplete(
-            @PathVariable int goalId,
-            @RequestBody Map<String, Object> request
-    ) {
-        String title = (String) request.get("title");
-        boolean completed = (Boolean) request.getOrDefault("completed", true);
-
-        if (title == null || title.isEmpty()) {
-            return ResponseEntity.badRequest()
-                    .body(Map.of("success", false, "message", "Subgoal title is required"));
-        }
-
+    @GetMapping
+    public ResponseEntity<?> getAllGoals() {
         try {
-            boolean updated = goalRepository.markSubgoalComplete(goalId, title, completed);
-            if (!updated) {
-                return ResponseEntity.ok(Map.of("success", false, "message", "Subgoal not found"));
-            }
-
-            Subgoal updatedSubgoal = goalRepository.getSubgoal(goalId, title);
-            return ResponseEntity.ok(Map.of(
-                    "success", true,
-                    "subgoal", updatedSubgoal
-            ));
-
+            List<Goal> goals = goalRepository.getAllGoals();
+            return ResponseEntity.ok(goals);
         } catch (Exception e) {
-            System.err.println("Failed to update subgoal: " + e.getMessage());
+            System.err.println("Error fetching all goals: " + e.getMessage());
+            e.printStackTrace();
             return ResponseEntity.internalServerError()
-                    .body(Map.of("success", false, "message", e.getMessage()));
+                    .body(Map.of("error", "Failed to fetch goals", "message", e.getMessage()));
         }
     }
 
-
     /**
-     * Get a goal by ID from Firebase
+     * ✅ Get a goal by ID from Firebase
+     * Note: You can also add a /by-title/{title} endpoint if preferred
      */
     @GetMapping("/{id}")
     public ResponseEntity<?> getGoal(@PathVariable int id) {
@@ -221,42 +204,517 @@ public class GoalController {
 
         } catch (Exception e) {
             System.err.println("Error fetching goal: " + e.getMessage());
+            e.printStackTrace();
             return ResponseEntity.internalServerError()
                     .body(Map.of("error", "Failed to fetch goal", "message", e.getMessage()));
         }
     }
 
     /**
-     * Delete a goal by ID from Firebase
+     * ✅ NEW: Get a goal by TITLE (more user-friendly)
+     * URL example: /api/goals/by-title/Learn%20Web%20Development
      */
-    @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteGoal(@PathVariable int id) {
+    @GetMapping("/by-title/{title}")
+    public ResponseEntity<?> getGoalByTitle(@PathVariable String title) {
         try {
-            goalRepository.deleteGoal(id);
-            return ResponseEntity.ok(Map.of("message", "Goal deleted successfully"));
+            // Decode URL-encoded title
+            String decodedTitle = URLDecoder.decode(title, StandardCharsets.UTF_8);
+
+            Goal goal = goalRepository.getGoalByTitle(decodedTitle);
+
+            if (goal == null) {
+                return ResponseEntity.notFound().build();
+            }
+
+            return ResponseEntity.ok(goal);
 
         } catch (Exception e) {
-            System.err.println("Error deleting goal: " + e.getMessage());
+            System.err.println("Error fetching goal by title: " + e.getMessage());
+            e.printStackTrace();
             return ResponseEntity.internalServerError()
-                    .body(Map.of("error", "Failed to delete goal", "message", e.getMessage()));
+                    .body(Map.of("error", "Failed to fetch goal", "message", e.getMessage()));
         }
     }
 
     /**
-     * Save the main goal with the corresponding sub goals
+     * ✅ Update an existing goal using TITLE
      */
-    @PostMapping("/{id}")
-    public ResponseEntity<Boolean> saveChanges(@RequestBody Goal goal) {
+    @PutMapping("/by-title/{title}")
+    public ResponseEntity<?> updateGoalByTitle(
+            @PathVariable String title,
+            @RequestBody Goal goal
+    ) {
         try {
-            goalRepository.saveGoal(goal); // saveGoal throws exception if it fails
-            return ResponseEntity.ok(true); // success
+            String decodedTitle = URLDecoder.decode(title, StandardCharsets.UTF_8);
+
+            // ✅ Find existing goal by title
+            Goal existingGoal = goalRepository.getGoalByTitle(decodedTitle);
+            if (existingGoal == null) {
+                return ResponseEntity.notFound().build();
+            }
+
+            // ✅ Keep the same ID
+            goal.setId(existingGoal.getId());
+
+            // ✅ Ensure all subgoals have the correct goalId
+            if (goal.getSubgoals() != null) {
+                for (Subgoal subgoal : goal.getSubgoals()) {
+                    subgoal.setGoalId(existingGoal.getId());
+                }
+            }
+
+            // ✅ Save to Firebase
+            Goal savedGoal = goalRepository.saveGoal(goal);
+            System.out.println("Goal '" + title + "' updated in Firebase");
+
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "goal", savedGoal
+            ));
+
         } catch (Exception e) {
-            System.err.println("Failed to save goal: " + e.getMessage());
-            return ResponseEntity.ok(false); // failure
+            System.err.println("Failed to update goal: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.internalServerError()
+                    .body(Map.of(
+                            "success", false,
+                            "message", e.getMessage()
+                    ));
         }
     }
 
+    /**
+     * ✅ Update an existing goal using ID (keep this for compatibility)
+     */
+    @PutMapping("/{id}")
+    public ResponseEntity<?> updateGoal(
+            @PathVariable int id,
+            @RequestBody Goal goal
+    ) {
+        try {
+            // ✅ Validate that the path ID matches the goal ID
+            if (goal.getId() == null || goal.getId() != id) {
+                return ResponseEntity.badRequest()
+                        .body(Map.of(
+                                "success", false,
+                                "message", "Goal ID in path must match goal ID in body"
+                        ));
+            }
 
+            // ✅ Check if goal exists
+            Goal existingGoal = goalRepository.getGoalById(id);
+            if (existingGoal == null) {
+                return ResponseEntity.notFound().build();
+            }
+
+            // ✅ Ensure all subgoals have the correct goalId
+            if (goal.getSubgoals() != null) {
+                for (Subgoal subgoal : goal.getSubgoals()) {
+                    subgoal.setGoalId(id);
+                }
+            }
+
+            // ✅ Save to Firebase
+            Goal savedGoal = goalRepository.saveGoal(goal);
+            System.out.println("Goal " + id + " updated in Firebase");
+
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "goal", savedGoal
+            ));
+
+        } catch (Exception e) {
+            System.err.println("Failed to update goal: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.internalServerError()
+                    .body(Map.of(
+                            "success", false,
+                            "message", e.getMessage()
+                    ));
+        }
+    }
+
+    /**
+     * ✅ Delete a goal by ID from Firebase
+     */
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> deleteGoal(@PathVariable int id) {
+        try {
+            // ✅ First check if goal exists
+            Goal existingGoal = goalRepository.getGoalById(id);
+            if (existingGoal == null) {
+                return ResponseEntity.notFound().build();
+            }
+
+            // ✅ Delete from Firebase
+            goalRepository.deleteGoal(id);
+            System.out.println("Goal " + id + " deleted from Firebase");
+
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "message", "Goal deleted successfully"
+            ));
+
+        } catch (Exception e) {
+            System.err.println("Error deleting goal: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.internalServerError()
+                    .body(Map.of(
+                            "success", false,
+                            "error", "Failed to delete goal",
+                            "message", e.getMessage()
+                    ));
+        }
+    }
+
+    /**
+     * ✅ NEW: Delete a goal by TITLE
+     */
+    @DeleteMapping("/by-title/{title}")
+    public ResponseEntity<?> deleteGoalByTitle(@PathVariable String title) {
+        try {
+            String decodedTitle = URLDecoder.decode(title, StandardCharsets.UTF_8);
+
+            Goal existingGoal = goalRepository.getGoalByTitle(decodedTitle);
+            if (existingGoal == null) {
+                return ResponseEntity.notFound().build();
+            }
+
+            goalRepository.deleteGoal(existingGoal.getId());
+            System.out.println("Goal '" + title + "' deleted from Firebase");
+
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "message", "Goal deleted successfully"
+            ));
+
+        } catch (Exception e) {
+            System.err.println("Error deleting goal: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.internalServerError()
+                    .body(Map.of(
+                            "success", false,
+                            "error", "Failed to delete goal",
+                            "message", e.getMessage()
+                    ));
+        }
+    }
+
+    /**
+     * ✅ Mark a subgoal as complete using TITLE-based lookup
+     */
+    @PatchMapping("/by-title/{goalTitle}/subgoals/complete")
+    public ResponseEntity<?> markSubgoalCompleteByTitle(
+            @PathVariable String goalTitle,
+            @RequestBody Map<String, Object> request
+    ) {
+        String subgoalTitle = (String) request.get("title");
+        Boolean completed = (Boolean) request.getOrDefault("completed", true);
+
+        if (subgoalTitle == null || subgoalTitle.isEmpty()) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("success", false, "message", "Subgoal title is required"));
+        }
+
+        try {
+            String decodedGoalTitle = URLDecoder.decode(goalTitle, StandardCharsets.UTF_8);
+
+            // ✅ Get the full goal from Firebase by title
+            Goal goal = goalRepository.getGoalByTitle(decodedGoalTitle);
+
+            if (goal == null) {
+                return ResponseEntity.notFound().build();
+            }
+
+            // ✅ Find and update the subgoal
+            boolean found = false;
+            for (Subgoal subgoal : goal.getSubgoals()) {
+                if (subgoal.getTitle().equals(subgoalTitle)) {
+                    subgoal.setCompleted(completed);
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found) {
+                return ResponseEntity.ok(Map.of(
+                        "success", false,
+                        "message", "Subgoal not found"
+                ));
+            }
+
+            // ✅ Save the entire goal back to Firebase
+            goalRepository.saveGoal(goal);
+
+            System.out.println("Subgoal '" + subgoalTitle + "' in goal '" + goalTitle +
+                    "' marked as " + (completed ? "complete" : "incomplete"));
+
+            // ✅ Return the updated subgoal
+            Subgoal updatedSubgoal = goal.getSubgoals().stream()
+                    .filter(sg -> sg.getTitle().equals(subgoalTitle))
+                    .findFirst()
+                    .orElse(null);
+
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "subgoal", updatedSubgoal
+            ));
+
+        } catch (Exception e) {
+            System.err.println("Failed to update subgoal: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("success", false, "message", e.getMessage()));
+        }
+    }
+
+    /**
+     * ✅ Mark a subgoal as complete using ID (keep for compatibility)
+     */
+    @PatchMapping("/{goalId}/subgoals/complete")
+    public ResponseEntity<?> markSubgoalComplete(
+            @PathVariable int goalId,
+            @RequestBody Map<String, Object> request
+    ) {
+        String title = (String) request.get("title");
+        Boolean completed = (Boolean) request.getOrDefault("completed", true);
+
+        if (title == null || title.isEmpty()) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("success", false, "message", "Subgoal title is required"));
+        }
+
+        try {
+            // ✅ Get the full goal from Firebase
+            Goal goal = goalRepository.getGoalById(goalId);
+
+            if (goal == null) {
+                return ResponseEntity.notFound().build();
+            }
+
+            // ✅ Find and update the subgoal
+            boolean found = false;
+            for (Subgoal subgoal : goal.getSubgoals()) {
+                if (subgoal.getTitle().equals(title)) {
+                    subgoal.setCompleted(completed);
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found) {
+                return ResponseEntity.ok(Map.of(
+                        "success", false,
+                        "message", "Subgoal not found"
+                ));
+            }
+
+            // ✅ Save the entire goal back to Firebase
+            goalRepository.saveGoal(goal);
+
+            System.out.println("Subgoal '" + title + "' marked as " +
+                    (completed ? "complete" : "incomplete") +
+                    " and saved to Firebase");
+
+            // ✅ Return the updated subgoal
+            Subgoal updatedSubgoal = goal.getSubgoals().stream()
+                    .filter(sg -> sg.getTitle().equals(title))
+                    .findFirst()
+                    .orElse(null);
+
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "subgoal", updatedSubgoal
+            ));
+
+        } catch (Exception e) {
+            System.err.println("Failed to update subgoal: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("success", false, "message", e.getMessage()));
+        }
+    }
+
+    /**
+     * ✅ Add a new subgoal to an existing goal (by title)
+     */
+    @PostMapping("/by-title/{goalTitle}/subgoals")
+    public ResponseEntity<?> addSubgoalByTitle(
+            @PathVariable String goalTitle,
+            @RequestBody Subgoal subgoal
+    ) {
+        try {
+            String decodedTitle = URLDecoder.decode(goalTitle, StandardCharsets.UTF_8);
+
+            // ✅ Get existing goal
+            Goal goal = goalRepository.getGoalByTitle(decodedTitle);
+            if (goal == null) {
+                return ResponseEntity.notFound().build();
+            }
+
+            // ✅ Set the goalId and add to goal
+            subgoal.setGoalId(goal.getId());
+            subgoal.setCompleted(false);
+            goal.addSubgoal(subgoal);
+
+            // ✅ Save to Firebase
+            goalRepository.saveGoal(goal);
+            System.out.println("New subgoal added to goal '" + goalTitle + "'");
+
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "subgoal", subgoal
+            ));
+
+        } catch (Exception e) {
+            System.err.println("Failed to add subgoal: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.internalServerError()
+                    .body(Map.of(
+                            "success", false,
+                            "message", e.getMessage()
+                    ));
+        }
+    }
+
+    /**
+     * ✅ Add a new subgoal to an existing goal (by ID - keep for compatibility)
+     */
+    @PostMapping("/{goalId}/subgoals")
+    public ResponseEntity<?> addSubgoal(
+            @PathVariable int goalId,
+            @RequestBody Subgoal subgoal
+    ) {
+        try {
+            // ✅ Get existing goal
+            Goal goal = goalRepository.getGoalById(goalId);
+            if (goal == null) {
+                return ResponseEntity.notFound().build();
+            }
+
+            // ✅ Set the goalId and add to goal
+            subgoal.setGoalId(goalId);
+            subgoal.setCompleted(false);
+            goal.addSubgoal(subgoal);
+
+            // ✅ Save to Firebase
+            goalRepository.saveGoal(goal);
+            System.out.println("New subgoal added to goal " + goalId);
+
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "subgoal", subgoal
+            ));
+
+        } catch (Exception e) {
+            System.err.println("Failed to add subgoal: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.internalServerError()
+                    .body(Map.of(
+                            "success", false,
+                            "message", e.getMessage()
+                    ));
+        }
+    }
+
+    /**
+     * ✅ Delete a subgoal from a goal (by goal title)
+     */
+    @DeleteMapping("/by-title/{goalTitle}/subgoals/{subgoalTitle}")
+    public ResponseEntity<?> deleteSubgoalByTitle(
+            @PathVariable String goalTitle,
+            @PathVariable String subgoalTitle
+    ) {
+        try {
+            String decodedGoalTitle = URLDecoder.decode(goalTitle, StandardCharsets.UTF_8);
+            String decodedSubgoalTitle = URLDecoder.decode(subgoalTitle, StandardCharsets.UTF_8);
+
+            // ✅ Get existing goal
+            Goal goal = goalRepository.getGoalByTitle(decodedGoalTitle);
+            if (goal == null) {
+                return ResponseEntity.notFound().build();
+            }
+
+            // ✅ Find and remove subgoal
+            boolean removed = goal.getSubgoals().removeIf(
+                    sg -> sg.getTitle().equals(decodedSubgoalTitle)
+            );
+
+            if (!removed) {
+                return ResponseEntity.ok(Map.of(
+                        "success", false,
+                        "message", "Subgoal not found"
+                ));
+            }
+
+            // ✅ Save to Firebase
+            goalRepository.saveGoal(goal);
+            System.out.println("Subgoal '" + subgoalTitle + "' deleted from goal '" + goalTitle + "'");
+
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "message", "Subgoal deleted successfully"
+            ));
+
+        } catch (Exception e) {
+            System.err.println("Failed to delete subgoal: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.internalServerError()
+                    .body(Map.of(
+                            "success", false,
+                            "message", e.getMessage()
+                    ));
+        }
+    }
+
+    /**
+     * ✅ Delete a subgoal from a goal (by ID - keep for compatibility)
+     */
+    @DeleteMapping("/{goalId}/subgoals/{subgoalTitle}")
+    public ResponseEntity<?> deleteSubgoal(
+            @PathVariable int goalId,
+            @PathVariable String subgoalTitle
+    ) {
+        try {
+            String decodedTitle = URLDecoder.decode(subgoalTitle, StandardCharsets.UTF_8);
+
+            // ✅ Get existing goal
+            Goal goal = goalRepository.getGoalById(goalId);
+            if (goal == null) {
+                return ResponseEntity.notFound().build();
+            }
+
+            // ✅ Find and remove subgoal
+            boolean removed = goal.getSubgoals().removeIf(
+                    sg -> sg.getTitle().equals(decodedTitle)
+            );
+
+            if (!removed) {
+                return ResponseEntity.ok(Map.of(
+                        "success", false,
+                        "message", "Subgoal not found"
+                ));
+            }
+
+            // ✅ Save to Firebase
+            goalRepository.saveGoal(goal);
+            System.out.println("Subgoal '" + subgoalTitle + "' deleted from goal " + goalId);
+
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "message", "Subgoal deleted successfully"
+            ));
+
+        } catch (Exception e) {
+            System.err.println("Failed to delete subgoal: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.internalServerError()
+                    .body(Map.of(
+                            "success", false,
+                            "message", e.getMessage()
+                    ));
+        }
+    }
 
     private Goal convertToGoalEntity(GoalResponseDTO dto) {
         LocalDate deadline;
