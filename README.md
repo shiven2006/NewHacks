@@ -25,6 +25,7 @@ Goal Growth Tracker transforms productivity into a rewarding experience. Users c
 - **JSON Parsing**: org.json (built-in Android)
 
 ### Backend
+- RESTful APIs
 - **API Base URL**: `http://10.0.2.2:8080/api/goals`
 - **Endpoints**:
   - `GET /api/goals/` - Fetch all goals
