@@ -2,6 +2,7 @@ package com.example.frontend;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.*;
 import androidx.appcompat.app.AppCompatActivity;
@@ -14,6 +15,8 @@ import java.util.List;
 import okhttp3.*;
 
 public class MainPageActivity extends AppCompatActivity {
+
+    private static final String TAG = "MainPageActivity";
 
     private TextView tvBigGoal, tvSubgoal;
     private CheckBox cbSubgoal;
@@ -134,7 +137,8 @@ public class MainPageActivity extends AppCompatActivity {
                 Goal currentGoal = goalList.get(currentGoalIndex);
 
                 Intent intent = new Intent(MainPageActivity.this, PlantDetailActivity.class);
-                intent.putExtra("GOAL_ID", currentGoal.id); // ✅ Pass the goal ID
+                intent.putExtra("GOAL_ID", currentGoal.id);
+                intent.putExtra("GOAL_TITLE", currentGoal.title);
                 startActivity(intent);
             } else {
                 Toast.makeText(MainPageActivity.this, "No goal to display", Toast.LENGTH_SHORT).show();
@@ -164,6 +168,7 @@ public class MainPageActivity extends AppCompatActivity {
         client.newCall(request).enqueue(new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
+                Log.e(TAG, "Failed to load goals", e);
                 runOnUiThread(() -> {
                     Toast.makeText(MainPageActivity.this,
                             "Failed to load goals: " + e.getMessage(),
@@ -177,6 +182,7 @@ public class MainPageActivity extends AppCompatActivity {
                 if (response.isSuccessful() && response.body() != null) {
                     try {
                         String jsonData = response.body().string();
+                        Log.d(TAG, "Response JSON: " + jsonData);
 
                         // ✅ Parse JSON using built-in JSONArray
                         JSONArray jsonArray = new JSONArray(jsonData);
@@ -187,16 +193,18 @@ public class MainPageActivity extends AppCompatActivity {
                             showCurrentGoal();
                         });
                     } catch (Exception e) {
+                        Log.e(TAG, "Error parsing goals", e);
                         runOnUiThread(() -> {
                             Toast.makeText(MainPageActivity.this,
                                     "Error parsing goals: " + e.getMessage(),
-                                    Toast.LENGTH_SHORT).show();
+                                    Toast.LENGTH_LONG).show();
                         });
                     }
                 } else {
+                    Log.e(TAG, "Server returned error: " + response.code());
                     runOnUiThread(() -> {
                         Toast.makeText(MainPageActivity.this,
-                                "Failed to load goals from server",
+                                "Failed to load goals from server (HTTP " + response.code() + ")",
                                 Toast.LENGTH_SHORT).show();
                     });
                 }
@@ -205,37 +213,93 @@ public class MainPageActivity extends AppCompatActivity {
     }
 
     /**
-     * ✅ Parse JSON array into ApiGoal objects
+     * ✅ Parse JSON array into ApiGoal objects with better error handling
      */
     private List<ApiGoal> parseGoalsFromJson(JSONArray jsonArray) throws Exception {
         List<ApiGoal> goals = new ArrayList<>();
 
         for (int i = 0; i < jsonArray.length(); i++) {
-            JSONObject goalJson = jsonArray.getJSONObject(i);
+            try {
+                JSONObject goalJson = jsonArray.getJSONObject(i);
 
-            ApiGoal apiGoal = new ApiGoal();
-            apiGoal.id = goalJson.getInt("id");
-            apiGoal.title = goalJson.getString("title");
-            apiGoal.description = goalJson.optString("description", "");
-            apiGoal.deadline = goalJson.optString("deadline", "");
+                ApiGoal apiGoal = new ApiGoal();
 
-            // Parse subgoals array
-            JSONArray subgoalsJson = goalJson.getJSONArray("subgoals");
-            apiGoal.subgoals = new ArrayList<>();
+                // ✅ Handle ID - could be int or string
+                if (goalJson.has("id")) {
+                    Object idObj = goalJson.get("id");
+                    if (idObj instanceof Integer) {
+                        apiGoal.id = (Integer) idObj;
+                    } else if (idObj instanceof String) {
+                        apiGoal.id = Integer.parseInt((String) idObj);
+                    } else {
+                        apiGoal.id = goalJson.getInt("id");
+                    }
+                }
 
-            for (int j = 0; j < subgoalsJson.length(); j++) {
-                JSONObject subgoalJson = subgoalsJson.getJSONObject(j);
+                // ✅ Handle title
+                apiGoal.title = goalJson.optString("title", "Untitled Goal");
+                apiGoal.description = goalJson.optString("description", "");
+                apiGoal.deadline = goalJson.optString("deadline", "");
 
-                ApiSubgoal apiSubgoal = new ApiSubgoal();
-                apiSubgoal.goalId = subgoalJson.getInt("goalId");
-                apiSubgoal.title = subgoalJson.getString("title");
-                apiSubgoal.description = subgoalJson.optString("description", "");
-                apiSubgoal.completed = subgoalJson.optBoolean("completed", false);
+                // ✅ Parse subgoals array
+                apiGoal.subgoals = new ArrayList<>();
 
-                apiGoal.subgoals.add(apiSubgoal);
+                if (goalJson.has("subgoals") && !goalJson.isNull("subgoals")) {
+                    JSONArray subgoalsJson = goalJson.getJSONArray("subgoals");
+
+                    for (int j = 0; j < subgoalsJson.length(); j++) {
+                        try {
+                            JSONObject subgoalJson = subgoalsJson.getJSONObject(j);
+
+                            ApiSubgoal apiSubgoal = new ApiSubgoal();
+
+                            // ✅ Handle goalId
+                            if (subgoalJson.has("goalId")) {
+                                Object goalIdObj = subgoalJson.get("goalId");
+                                if (goalIdObj instanceof Integer) {
+                                    apiSubgoal.goalId = (Integer) goalIdObj;
+                                } else if (goalIdObj instanceof String) {
+                                    apiSubgoal.goalId = Integer.parseInt((String) goalIdObj);
+                                } else {
+                                    apiSubgoal.goalId = subgoalJson.getInt("goalId");
+                                }
+                            }
+
+                            apiSubgoal.title = subgoalJson.optString("title", "Untitled Subgoal");
+                            apiSubgoal.description = subgoalJson.optString("description", "");
+
+                            // ✅ Handle completed - could be boolean, int, or string
+                            if (subgoalJson.has("completed")) {
+                                Object completedObj = subgoalJson.get("completed");
+                                if (completedObj instanceof Boolean) {
+                                    apiSubgoal.completed = (Boolean) completedObj;
+                                } else if (completedObj instanceof Integer) {
+                                    apiSubgoal.completed = ((Integer) completedObj) != 0;
+                                } else if (completedObj instanceof String) {
+                                    apiSubgoal.completed = Boolean.parseBoolean((String) completedObj);
+                                } else {
+                                    apiSubgoal.completed = subgoalJson.getBoolean("completed");
+                                }
+                            } else {
+                                apiSubgoal.completed = false;
+                            }
+
+                            apiGoal.subgoals.add(apiSubgoal);
+
+                        } catch (Exception e) {
+                            Log.e(TAG, "Error parsing subgoal " + j, e);
+                            // Continue with next subgoal
+                        }
+                    }
+                }
+
+                goals.add(apiGoal);
+                Log.d(TAG, "Parsed goal: " + apiGoal.title + " with " + apiGoal.subgoals.size() + " subgoals");
+
+            } catch (Exception e) {
+                Log.e(TAG, "Error parsing goal " + i, e);
+                // Continue with next goal
             }
-
-            goals.add(apiGoal);
         }
 
         return goals;
@@ -264,6 +328,7 @@ public class MainPageActivity extends AppCompatActivity {
             client.newCall(request).enqueue(new Callback() {
                 @Override
                 public void onFailure(Call call, IOException e) {
+                    Log.e(TAG, "Failed to update subgoal", e);
                     runOnUiThread(() ->
                             Toast.makeText(MainPageActivity.this,
                                     "Failed to update subgoal",
@@ -274,13 +339,14 @@ public class MainPageActivity extends AppCompatActivity {
                 @Override
                 public void onResponse(Call call, Response response) throws IOException {
                     if (response.isSuccessful()) {
-                        runOnUiThread(() ->
-                                System.out.println("✅ Subgoal updated in backend")
-                        );
+                        Log.d(TAG, "✅ Subgoal updated in backend");
+                    } else {
+                        Log.e(TAG, "Failed to update subgoal: " + response.code());
                     }
                 }
             });
         } catch (Exception e) {
+            Log.e(TAG, "Error creating request", e);
             Toast.makeText(this, "Error creating request: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
     }
@@ -297,6 +363,7 @@ public class MainPageActivity extends AppCompatActivity {
         client.newCall(request).enqueue(new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
+                Log.e(TAG, "Failed to delete goal", e);
                 runOnUiThread(() ->
                         Toast.makeText(MainPageActivity.this,
                                 "Failed to delete goal from server",
@@ -307,8 +374,8 @@ public class MainPageActivity extends AppCompatActivity {
             @Override
             public void onResponse(Call call, Response response) throws IOException {
                 if (response.isSuccessful()) {
+                    Log.d(TAG, "✅ Goal deleted from backend");
                     runOnUiThread(() -> {
-                        System.out.println("✅ Goal deleted from backend");
                         // Remove from local list
                         goalList.remove(goal);
                         if (goalList.isEmpty()) {
@@ -322,6 +389,8 @@ public class MainPageActivity extends AppCompatActivity {
                             showCurrentGoal();
                         }
                     });
+                } else {
+                    Log.e(TAG, "Failed to delete goal: " + response.code());
                 }
             }
         });
@@ -336,6 +405,12 @@ public class MainPageActivity extends AppCompatActivity {
         goalList.clear();
 
         for (ApiGoal apiGoal : apiGoals) {
+            // Skip goals with no subgoals
+            if (apiGoal.subgoals == null || apiGoal.subgoals.isEmpty()) {
+                Log.w(TAG, "Skipping goal with no subgoals: " + apiGoal.title);
+                continue;
+            }
+
             // Extract subgoal titles and completion states
             String[] subTitles = new String[apiGoal.subgoals.size()];
             boolean[] completedStates = new boolean[apiGoal.subgoals.size()];
@@ -349,6 +424,7 @@ public class MainPageActivity extends AppCompatActivity {
             goal.completed = completedStates;
 
             // Find current subgoal index (first incomplete one)
+            goal.currentSubgoalIndex = 0;
             for (int i = 0; i < completedStates.length; i++) {
                 if (!completedStates[i]) {
                     goal.currentSubgoalIndex = i;
@@ -367,7 +443,7 @@ public class MainPageActivity extends AppCompatActivity {
         }
 
         currentGoalIndex = 0;
-        System.out.println("✅ Loaded " + goalList.size() + " goals from backend");
+        Log.d(TAG, "✅ Loaded " + goalList.size() + " goals from backend");
     }
 
     /**

@@ -8,17 +8,22 @@ import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import okhttp3.OkHttpClient;
+
 public class PlantDetailActivity extends AppCompatActivity {
 
     private TextView tvGoalTitle, tvGoalDescription;
     private LinearLayout subgoalContainer;
     private ImageButton btnBack;
+    private OkHttpClient client;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_plant_detail); // 确保你的 xml 文件名正确
 
+        client = new OkHttpClient();
+        
         btnBack = findViewById(R.id.btnBack);
         btnBack.setOnClickListener(v -> finish());
 
