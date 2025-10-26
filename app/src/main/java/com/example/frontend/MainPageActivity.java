@@ -11,6 +11,7 @@ import org.json.JSONObject;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import android.media.MediaPlayer;
 
 import okhttp3.*;
 
@@ -431,6 +432,21 @@ public class MainPageActivity extends AppCompatActivity {
                     break;
                 }
             }
+        imgPlant.setOnClickListener(v -> {
+            // 播放点击音效
+            MediaPlayer mp = MediaPlayer.create(MainPageActivity.this, R.raw.pop);
+            mp.start();
+
+            // 播放完释放资源
+            mp.setOnCompletionListener(MediaPlayer::release);
+
+            // 再执行跳转
+            Intent intent = new Intent(MainPageActivity.this, PlantDetailActivity.class);
+            startActivity(intent);
+        });
+        btnAddGoal.setOnClickListener(v -> startActivity(new Intent(MainPageActivity.this, CreateGoalActivity.class)));
+        btnCollection.setOnClickListener(v -> startActivity(new Intent(MainPageActivity.this, CollectionActivity.class)));
+    }
 
             // Calculate plant stage based on progress
             int progress = goal.getProgress();
@@ -484,6 +500,11 @@ public class MainPageActivity extends AppCompatActivity {
         confetti.setScaleX(0f);
         confetti.setScaleY(0f);
         confetti.setAlpha(0f);
+        confetti.setScaleX(0f); confetti.setScaleY(0f); confetti.setAlpha(0f);
+
+        MediaPlayer mp = MediaPlayer.create(MainPageActivity.this, R.raw.celebrate);
+        mp.start();
+        mp.setOnCompletionListener(MediaPlayer::release);
 
         confetti.animate()
                 .scaleX(1.5f).scaleY(1.5f).alpha(1f).setDuration(600)
