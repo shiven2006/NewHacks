@@ -27,11 +27,15 @@ import androidx.core.widget.NestedScrollView;
 
 import com.google.android.material.card.MaterialCardView;
 
+import org.json.JSONException;
+
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 
 public class CreateGoalActivity extends AppCompatActivity {
 
+    private APIInteractor _apiInteractor;
     private LayoutInflater _layoutInflater;
     private ArrayList<ConstraintLayout> _previousMessages;
     private ConstraintLayout _messagesContainer;
@@ -50,18 +54,27 @@ public class CreateGoalActivity extends AppCompatActivity {
         _messagesContainer = findViewById(R.id.messagesContainer);
         _editTextBox = findViewById(R.id.editTextBox);
         _messagesScroll = findViewById(R.id.messagesScroll);
+        _apiInteractor = new APIInteractor();
         Button sendMessageButton = findViewById(R.id.sendMessageButton);
         sendMessageButton.setOnClickListener(new View.OnClickListener(){
             public void onClick(View v) {
-                /*Toast.makeText(MainActivity.this, "You clicked the button!", Toast.LENGTH_SHORT).show();*/
                 if (!_editTextBox.getText().toString().isEmpty()) {
                     SendMessage(_editTextBox.getText().toString());
-                    new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
-                        @Override
-                        public void run() {
-                            GenerateResponse("Message 2");
-                        }
-                    }, 2000);
+                    _apiInteractor.GenerateMainGoal(_editTextBox.getText().toString())
+                            .thenAccept(body -> runOnUiThread(() ->
+                                    {
+                                        try {
+                                            GenerateResponse("Sure! Here are the subgoals of the goal you provided!", MainGoalModel.ParseJSON(body));
+                                        } catch (JSONException e) {
+                                            throw new RuntimeException(e);
+                                        } catch (ParseException e) {
+                                            throw new RuntimeException(e);
+                                        }
+                                    }
+                            ))
+                            .exceptionally(e -> { runOnUiThread(() ->
+                                    CreateNewResponseErrorMessageBox()
+                            ); return null; });
                 }
             }
         });
@@ -77,10 +90,17 @@ public class CreateGoalActivity extends AppCompatActivity {
         _messagesScroll.post(() -> _messagesScroll.smoothScrollTo(0, _messagesContainer.getBottom()));
     }
 
-    private void GenerateResponse(String response) {
-        ConstraintLayout messageBox = CreateNewResponseMessageBox(response);
+    private void GenerateResponse(String response, MainGoalModel mainGoalModel) {
+        ConstraintLayout messageBox = CreateNewResponseMessageBox(response, mainGoalModel);
         AlignMessage(messageBox, false);
         _previousMessages.add(messageBox);
+        _messagesScroll.post(() -> _messagesScroll.smoothScrollTo(0, _messagesContainer.getBottom()));
+    }
+
+    private void GenerateResponseError() {
+        ConstraintLayout messageBoxResponseError = CreateNewResponseErrorMessageBox();
+        AlignMessage(messageBoxResponseError, false);
+        _previousMessages.add(messageBoxResponseError);
         _messagesScroll.post(() -> _messagesScroll.smoothScrollTo(0, _messagesContainer.getBottom()));
     }
 
@@ -95,7 +115,17 @@ public class CreateGoalActivity extends AppCompatActivity {
         return messageBox;
     }
 
-    private ConstraintLayout CreateNewResponseMessageBox(String messageInput) {
+    private ConstraintLayout CreateNewResponseErrorMessageBox() {
+        ConstraintLayout messageBoxResponseError = (ConstraintLayout) _layoutInflater.inflate(R.layout.message_response_error,
+                _messagesContainer, false);
+        messageBoxResponseError.setId(View.generateViewId());
+        TextView messageBoxTextView = messageBoxResponseError.findViewById(R.id.messageUserText);
+        messageBoxTextView.setText("Sorry, an internal error occured");
+        _messagesContainer.addView(messageBoxResponseError, messageBoxResponseError.getLayoutParams());
+        return messageBoxResponseError;
+    }
+
+    private ConstraintLayout CreateNewResponseMessageBox(String messageInput, MainGoalModel mainGoalModel) {
         ConstraintLayout messageBox = (ConstraintLayout) _layoutInflater.inflate(R.layout.message_response,
                 _messagesContainer, false);
         messageBox.setId(View.generateViewId());
@@ -104,20 +134,26 @@ public class CreateGoalActivity extends AppCompatActivity {
         Button tryAgainButton = messageBox.findViewById(R.id.tryAgainButton);
         showSubgoalsButton.setOnClickListener(new View.OnClickListener(){
             public void onClick(View v) {
-                OpenSubGoalsPopUp(new MainGoalModel(
-                        "Learn Android Development",
-                        "Build a fully functional Android app from scratch",
-                        new ArrayList<>(Arrays.asList(
-                                new SubgoalModel("Set up Android Studio", "Install and configure the IDE"),
-                                new SubgoalModel("Learn XML layouts", "Understand ConstraintLayout and view hierarchy"),
-                                new SubgoalModel("Build a sample app", "Implement UI and basic logic")
-                        ))
-                ));
+                OpenSubGoalsPopUp(mainGoalModel);
             }
         });
         tryAgainButton.setOnClickListener(new View.OnClickListener(){
             public void onClick(View v) {
-                GenerateResponse("Okay, I will try again");
+                _apiInteractor.GenerateMainGoal(_editTextBox.getText().toString())
+                        .thenAccept(body -> runOnUiThread(() ->
+                                {
+                                    try {
+                                        GenerateResponse("Sure! Here are the subgoals of the goal you provided!", MainGoalModel.ParseJSON(body));
+                                    } catch (JSONException e) {
+                                        throw new RuntimeException(e);
+                                    } catch (ParseException e) {
+                                        throw new RuntimeException(e);
+                                    }
+                                }
+                        ))
+                        .exceptionally(e -> { runOnUiThread(() ->
+                                Toast.makeText(CreateGoalActivity.this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show()
+                        ); return null; });
             }
         });
         messageBoxTextView.setText(messageInput);
@@ -155,7 +191,7 @@ public class CreateGoalActivity extends AppCompatActivity {
                 R.layout.subgoals_popup_window, null);
         ConstraintLayout popupRoot = subgoalsPopupWindow.findViewById(R.id.subgoalsPopupRoot);
         TextView popupTitle = popupRoot.findViewById(R.id.popupTitle);
-        popupTitle.setText(model.name);
+        popupTitle.setText(model.getTitle());
         Button popupdismissButton = popupRoot.findViewById(R.id.popupDismissButton);
         popupdismissButton.setOnClickListener(new View.OnClickListener(){
             public void onClick(View v) {
@@ -163,13 +199,13 @@ public class CreateGoalActivity extends AppCompatActivity {
             }
         });
         LinearLayout subgoalsContainer = subgoalsPopupWindow.findViewById(R.id.subgoalsContainer);
-        for (SubgoalModel subgoalModel : model.getSubgoals()) {
+        for (SubgoalModel subgoalModel : model.getSubgoalsList()) {
             ConstraintLayout subgoalBox = (ConstraintLayout) _layoutInflater.inflate(
                     R.layout.subgoal_box, subgoalsContainer, false);
 
             subgoalBox.setId(View.generateViewId());
             ((TextView) subgoalBox.findViewById(R.id.editTextSubgoalTitle))
-                    .setText(subgoalModel.getName());
+                    .setText(subgoalModel.getTitle());
             ((TextView) subgoalBox.findViewById(R.id.editTextSubgoalDescription))
                     .setText(subgoalModel.getDescription());
 
