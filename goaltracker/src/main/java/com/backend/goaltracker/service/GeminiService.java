@@ -5,6 +5,7 @@ import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -19,32 +20,15 @@ public class GeminiService {
 
     private final RestTemplate restTemplate = new RestTemplate();
 
-
     public String generateGoal(String userPrompt) {
         if (userPrompt == null || userPrompt.isEmpty()) {
             throw new IllegalArgumentException("Prompt cannot be empty");
         }
 
         try {
-            // Enhanced prompt for structured JSON output
-            String enhancedPrompt = "You are a goal planning assistant. Generate a structured goal with subgoals in JSON format.\n\n"
-                    + "User request: " + userPrompt + "\n\n"
-                    + "IMPORTANT: Use ISO date format (yyyy-MM-dd) for the deadline.\n"
-                    + "Return ONLY valid JSON in this exact format (no markdown, no extra text):\n"
-                    + "{\n"
-                    + "  \"id\": \"1\",\n"
-                    + "  \"title\": \"Main goal title\",\n"
-                    + "  \"description\": \"Detailed description\",\n"
-                    + "  \"deadline\": \"2024-12-31\",\n"
-                    + "  \"subgoals\": [\n"
-                    + "    {\n"
-                    + "      \"title\": \"Subgoal 1\",\n"
-                    + "      \"description\": \"Details\"\n"
-                    + "    }\n"
-                    + "  ]\n"
-                    + "}";
+            // ✅ Enhanced prompt with stricter formatting requirements
+            String enhancedPrompt = buildEnhancedPrompt(userPrompt);
 
-            // ✅ Correct Gemini API request format
             Map<String, Object> requestBody = Map.of(
                     "contents", List.of(
                             Map.of(
@@ -54,7 +38,7 @@ public class GeminiService {
                             )
                     ),
                     "generationConfig", Map.of(
-                            "temperature", 0.2,
+                            "temperature", 0.1,  // Lower temperature for more consistent output
                             "maxOutputTokens", 2000,
                             "topP", 0.8,
                             "topK", 40
@@ -65,23 +49,17 @@ public class GeminiService {
             headers.setContentType(MediaType.APPLICATION_JSON);
 
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
-
-            // ✅ Append API key to URL
             String urlWithKey = apiUrl + "?key=" + apiKey;
 
             System.out.println("=== Gemini API Request ===");
             System.out.println("URL: " + apiUrl);
-            System.out.println("Prompt: " + userPrompt);
-            System.out.println("Request body: " + requestBody);
+            System.out.println("Prompt length: " + userPrompt.length());
 
-            // ✅ Send to Gemini API endpoint
             ResponseEntity<String> response = restTemplate.postForEntity(urlWithKey, entity, String.class);
 
             System.out.println("=== Gemini API Response ===");
             System.out.println("Status: " + response.getStatusCode());
-            System.out.println("Body: " + response.getBody());
 
-            // ✅ Check if response is successful
             if (response.getStatusCode() != HttpStatus.OK) {
                 throw new RuntimeException("Gemini API returned status: " + response.getStatusCode());
             }
@@ -99,5 +77,44 @@ public class GeminiService {
             e.printStackTrace();
             throw new RuntimeException("Gemini API request failed: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * Build an enhanced prompt with strict formatting requirements
+     */
+    private String buildEnhancedPrompt(String userPrompt) {
+        LocalDate suggestedDeadline = LocalDate.now().plusMonths(2);
+
+        return "You are a goal planning assistant. Generate a structured goal with subgoals.\n\n"
+                + "User's goal: " + userPrompt + "\n\n"
+                + "CRITICAL REQUIREMENTS:\n"
+                + "1. Return ONLY valid JSON - no markdown code blocks, no explanations, no extra text\n"
+                + "2. Do NOT wrap in ```json or ``` tags\n"
+                + "3. Use ISO date format (yyyy-MM-dd) for deadline\n"
+                + "4. Include 3-5 specific, actionable subgoals\n"
+                + "5. Make sure all fields are filled with meaningful content\n"
+                + "6. Set a realistic deadline (suggested: " + suggestedDeadline + ")\n\n"
+                + "OUTPUT THIS EXACT JSON STRUCTURE:\n"
+                + "{\n"
+                + "  \"id\": \"1\",\n"
+                + "  \"title\": \"[Clear, concise main goal title]\",\n"
+                + "  \"description\": \"[Detailed explanation of what will be achieved and why]\",\n"
+                + "  \"deadline\": \"" + suggestedDeadline + "\",\n"
+                + "  \"subgoals\": [\n"
+                + "    {\n"
+                + "      \"title\": \"[Specific subgoal 1 title]\",\n"
+                + "      \"description\": \"[Concrete steps to achieve this subgoal]\"\n"
+                + "    },\n"
+                + "    {\n"
+                + "      \"title\": \"[Specific subgoal 2 title]\",\n"
+                + "      \"description\": \"[Concrete steps to achieve this subgoal]\"\n"
+                + "    },\n"
+                + "    {\n"
+                + "      \"title\": \"[Specific subgoal 3 title]\",\n"
+                + "      \"description\": \"[Concrete steps to achieve this subgoal]\"\n"
+                + "    }\n"
+                + "  ]\n"
+                + "}\n\n"
+                + "IMPORTANT: Return ONLY the JSON object. No other text.";
     }
 }

@@ -1,6 +1,8 @@
 package com.backend.goaltracker.controller;
 
 import com.backend.goaltracker.service.GeminiService;
+import com.backend.goaltracker.util.PromptValidator;
+import com.backend.goaltracker.util.GoalResponseValidator;
 import entities.Goal;
 import entities.GoalResponseDTO;
 import entities.Subgoal;
@@ -24,6 +26,12 @@ public class GoalController {
     @Autowired
     private GeminiService geminiService;
 
+    @Autowired
+    private PromptValidator promptValidator;
+
+    @Autowired
+    private GoalResponseValidator responseValidator;
+
     @PostMapping("/generate")
     public ResponseEntity<?> generateGoal(@RequestBody Map<String, String> request) {
         String userPrompt = request.get("prompt");
@@ -35,9 +43,21 @@ public class GoalController {
 
         try {
             System.out.println("=== Goal Generation Started ===");
-            System.out.println("User prompt: " + userPrompt);
+            System.out.println("Original prompt: " + userPrompt);
 
-            String jsonResponse = geminiService.generateGoal(userPrompt);
+            // ✅ STEP 1: Sanitize and validate the input prompt
+            String sanitizedPrompt;
+            try {
+                sanitizedPrompt = promptValidator.sanitizePrompt(userPrompt);
+                System.out.println("Sanitized prompt: " + sanitizedPrompt);
+            } catch (IllegalArgumentException e) {
+                System.err.println("Prompt validation failed: " + e.getMessage());
+                return ResponseEntity.badRequest()
+                        .body(Map.of("error", e.getMessage()));
+            }
+
+            // ✅ STEP 2: Call Gemini API with sanitized prompt
+            String jsonResponse = geminiService.generateGoal(sanitizedPrompt);
 
             // Parse Gemini API response JSON
             ObjectMapper mapper = new ObjectMapper();
@@ -91,34 +111,20 @@ public class GoalController {
 
             // ✅ Parse the structured JSON into DTO
             GoalResponseDTO dto = mapper.readValue(cleanedJson, GoalResponseDTO.class);
-
             System.out.println("Parsed DTO - Title: " + dto.title + ", Subgoals: " + dto.subgoals.size());
 
-            // ✅ Convert DTO into Goal entity
-            // Try multiple date formats since Gemini might return different formats
-            LocalDate deadline;
+            // ✅ STEP 3: Validate and fix the response DTO
             try {
-                // Try yyyy-MM-dd format first (ISO format)
-                deadline = LocalDate.parse(dto.deadline);
-            } catch (Exception e) {
-                // Fallback to dd/MM/yyyy format
-                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-                deadline = LocalDate.parse(dto.deadline, formatter);
+                dto = responseValidator.validateAndFix(dto);
+                System.out.println("Response validated and fixed");
+            } catch (IllegalArgumentException e) {
+                System.err.println("Response validation failed: " + e.getMessage());
+                return ResponseEntity.internalServerError()
+                        .body(Map.of("error", "Invalid response from AI: " + e.getMessage()));
             }
 
-            Goal goal = new Goal();
-            goal.setId(Integer.parseInt(dto.id));
-            goal.setTitle(dto.title);
-            goal.setDescription(dto.description);
-            goal.setDeadline(deadline);
-
-            for (SubgoalDTO sgDto : dto.subgoals) {
-                Subgoal subgoal = new Subgoal();
-                subgoal.setGoalId(goal.getId());
-                subgoal.setTitle(sgDto.title);
-                subgoal.setDescription(sgDto.description);
-                goal.addSubgoal(subgoal);
-            }
+            // ✅ STEP 4: Convert DTO into Goal entity
+            Goal goal = convertToGoalEntity(dto);
 
             System.out.println("=== Goal Generation Successful ===");
             return ResponseEntity.ok(goal);
@@ -145,5 +151,41 @@ public class GoalController {
                             "type", e.getClass().getSimpleName()
                     ));
         }
+    }
+
+    /**
+     * Convert validated DTO to Goal entity
+     * This method now receives a validated DTO with guaranteed fields
+     */
+    private Goal convertToGoalEntity(GoalResponseDTO dto) {
+        // Parse deadline (already validated and in ISO format from validator)
+        LocalDate deadline;
+        try {
+            deadline = LocalDate.parse(dto.deadline);
+        } catch (Exception e) {
+            // Fallback (should rarely happen due to validator)
+            try {
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+                deadline = LocalDate.parse(dto.deadline, formatter);
+            } catch (Exception e2) {
+                deadline = LocalDate.now().plusMonths(1);
+            }
+        }
+
+        Goal goal = new Goal();
+        goal.setId(Integer.parseInt(dto.id));
+        goal.setTitle(dto.title);
+        goal.setDescription(dto.description);
+        goal.setDeadline(deadline);
+
+        for (SubgoalDTO sgDto : dto.subgoals) {
+            Subgoal subgoal = new Subgoal();
+            subgoal.setGoalId(goal.getId());
+            subgoal.setTitle(sgDto.title);
+            subgoal.setDescription(sgDto.description);
+            goal.addSubgoal(subgoal);
+        }
+
+        return goal;
     }
 }
