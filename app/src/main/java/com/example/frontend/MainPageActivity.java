@@ -5,8 +5,6 @@ import android.os.Bundle;
 import android.view.View;
 import android.widget.*;
 import androidx.appcompat.app.AppCompatActivity;
-
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -36,6 +34,7 @@ public class MainPageActivity extends AppCompatActivity {
         int currentSubgoalIndex;
         int plantStage;
 
+
         Goal(String title, String[] subgoals) {
             this.title = title;
             this.subgoals = subgoals;
@@ -43,6 +42,7 @@ public class MainPageActivity extends AppCompatActivity {
             this.currentSubgoalIndex = 0;
             this.plantStage = 0;
         }
+
 
         int getProgress() {
             int done = 0;
@@ -56,13 +56,16 @@ public class MainPageActivity extends AppCompatActivity {
         }
     }
 
+
     private List<Goal> goalList = new ArrayList<>();
     private int currentGoalIndex = 0;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main_page);
+
 
         tvBigGoal = findViewById(R.id.tvBigGoal);
         btnPrevGoal = findViewById(R.id.btnPrevGoal);
@@ -100,12 +103,20 @@ public class MainPageActivity extends AppCompatActivity {
                 else if (progress >= 33) g.plantStage = 1;
                 else g.plantStage = 0;
 
-                if (g.isAllDone()) showCompletionAnimation(g);
+                // 更新植物成长阶段
+                if (g.getProgress() >= 33 && g.plantStage == 0) g.plantStage = 1;
+                else if (g.getProgress() >= 66 && g.plantStage == 1) g.plantStage = 2;
+                else if (g.isAllDone()) {
+                    g.plantStage = 3;
+                    showCompletionAnimation(g);
+                }
+
 
                 Toast.makeText(this, "Subgoal finished ✅", Toast.LENGTH_SHORT).show();
 
                 if (g.currentSubgoalIndex < g.subgoals.length - 1) g.currentSubgoalIndex++;
-                else Toast.makeText(this, "🎉 All subgoals are done!", Toast.LENGTH_SHORT).show();
+                else Toast.makeText(this, "🎉 All subgoals are done！", Toast.LENGTH_SHORT).show();
+
 
                 showCurrentGoal();
             }
@@ -117,33 +128,13 @@ public class MainPageActivity extends AppCompatActivity {
     }
 
 
+    private void initGoals() {
+        // TODO: API
+        goalList.add(new Goal("BigGoal1", new String[]{"SubGoal11","SubGoal12","SubGoal13"}));
+        goalList.add(new Goal("BigGoal2", new String[]{"SubGoal21","SubGoal22","SubGoal23"}));
+        goalList.add(new Goal("BigGoal3", new String[]{"SubGoal31","SubGoal32","SubGoal33"}));
+    }
 
-    // ---------------- API 调用 ----------------
-//    private void fetchGoalsFromApi() {
-//        Retrofit retrofit = new Retrofit.Builder()
-//                .baseUrl("http://10.0.2.2:8080/") // 模拟器访问本地服务
-//                .addConverterFactory(GsonConverterFactory.create())
-//                .build();
-//
-//        ApiService apiService = retrofit.create(ApiService.class);
-//        Call<List<ApiGoal>> call = apiService.getUserGoals(1); // userId = 1
-//        call.enqueue(new Callback<List<ApiGoal>>() {
-//            @Override
-//            public void onResponse(Call<List<ApiGoal>> call, Response<List<ApiGoal>> response) {
-//                if (response.isSuccessful() && response.body() != null) {
-//                    updateGoalList(response.body());
-//                } else {
-//                    Toast.makeText(MainPageActivity.this, "API returned empty or error", Toast.LENGTH_SHORT).show();
-//                }
-//            }
-//
-//
-//            @Override
-//            public void onFailure(Call<List<ApiGoal>> call, Throwable t) {
-//                Toast.makeText(MainPageActivity.this, "Failed to fetch goals: " + t.getMessage(), Toast.LENGTH_LONG).show();
-//            }
-//        });
-//    }
 
     private void updateGoalList(List<ApiGoal> apiGoals) {
         goalList.clear();
@@ -189,11 +180,12 @@ public class MainPageActivity extends AppCompatActivity {
 
         confetti.animate()
                 .scaleX(1.5f).scaleY(1.5f).alpha(1f).setDuration(600)
-                .withEndAction(() -> confetti.animate().alpha(0f).setDuration(800).withEndAction(() -> {
-                    confetti.setVisibility(View.GONE);
-                    animatePlantToCollection(g);
-                }).start())
-                .start();
+                .withEndAction(() -> {
+                    confetti.animate().alpha(0f).setDuration(800).withEndAction(() -> {
+                        confetti.setVisibility(View.GONE);
+                        animatePlantToCollection(g);
+                    }).start();
+                }).start();
     }
 
     private void animatePlantToCollection(Goal g) {
@@ -238,18 +230,5 @@ public class MainPageActivity extends AppCompatActivity {
         }
     }
 
-    // ---------------- Retrofit API ----------------
-    public interface ApiService {
-//        @retrofit2.http.GET("api/users/{userId}/goals")
-//        Call<List<ApiGoal>> getUserGoals(@retrofit2.http.Path("userId") int userId);
-    }
 
-    public static class ApiGoal {
-        String title;
-        List<ApiSubgoal> subgoalsList;
-    }
-
-    public static class ApiSubgoal {
-        String title;
-    }
 }

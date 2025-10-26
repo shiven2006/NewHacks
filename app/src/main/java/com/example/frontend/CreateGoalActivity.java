@@ -13,6 +13,7 @@ import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.PopupWindow;
 import android.widget.TextView;
@@ -41,6 +42,7 @@ public class CreateGoalActivity extends AppCompatActivity {
     private NestedScrollView _messagesScroll;
     private EditText _editTextBox;
     private PopupWindow _subgoalsPopupWindow;
+    private ImageButton btnBack;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -76,6 +78,8 @@ public class CreateGoalActivity extends AppCompatActivity {
                 }
             }
         });
+        btnBack = findViewById(R.id.btnBack);
+        btnBack.setOnClickListener(v -> finish());
     }
 
     private void SendMessage(String messageInput) {
