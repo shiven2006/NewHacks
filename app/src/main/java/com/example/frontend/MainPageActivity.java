@@ -146,9 +146,9 @@ public class MainPageActivity extends AppCompatActivity {
                 startActivity(new Intent(MainPageActivity.this, CreateGoalActivity.class))
         );
 
-        btnCollection.setOnClickListener(v ->
+        /*btnCollection.setOnClickListener(v ->
                 startActivity(new Intent(MainPageActivity.this, CollectionActivity.class))
-        );
+        );*/
     }
 
     // ================== BACKEND API CALLS ==================
