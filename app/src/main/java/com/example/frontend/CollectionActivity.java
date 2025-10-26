@@ -48,6 +48,7 @@ public class CollectionActivity extends AppCompatActivity {
         }
     }
 
+
     private void openPlantDetail(int index) {
         Intent intent = new Intent(this, PlantDetailActivity.class);
         intent.putExtra("plantIndex", index);

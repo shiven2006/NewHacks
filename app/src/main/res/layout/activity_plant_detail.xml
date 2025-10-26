@@ -9,7 +9,7 @@
     android:background="@drawable/goal_list_background"
     tools:context=".PlantDetailActivity">
 
-    <!-- 返回按钮 -->
+    <!-- Back Button -->
     <ImageButton
         android:id="@+id/btnBack"
         android:layout_width="40dp"
@@ -17,11 +17,8 @@
         android:src="@drawable/left_arrow"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:contentDescription="Back"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
         android:layout_marginStart="16dp"
         android:layout_marginTop="24dp"/>
-
 
     <!-- Goal Section -->
     <LinearLayout
@@ -39,7 +36,6 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginBottom="4dp"
-            android:text="Learn Spanish"
             android:textColor="@color/black"
             android:textSize="22sp"
             android:textStyle="bold" />
@@ -49,7 +45,6 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:gravity="center"
-            android:text="Master conversational Spanish in 6 months."
             android:textColor="#383030"
             android:textSize="16sp" />
     </LinearLayout>
@@ -77,42 +72,7 @@
             android:divider="?android:attr/dividerVertical"
             android:showDividers="middle">
 
-            <!-- Example subgoal card -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="12dp"
-                android:layout_marginBottom="8dp"
-                android:background="@drawable/bg_subgoal_incomplete">
-
-                <TextView
-                    android:id="@+id/tvSubgoalTitle1"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Learn basic vocabulary"
-                    android:textSize="18sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/black"/>
-
-                <TextView
-                    android:id="@+id/tvSubgoalDescription1"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:text="Start with 500 essential Spanish words."
-                    android:textColor="#3C3535"
-                    android:textSize="15sp" />
-
-                <TextView
-                    android:id="@+id/tvSubgoalStatus1"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Status: Not Completed"
-                    android:textStyle="italic"
-                    android:textColor="@color/black"
-                    android:layout_marginTop="6dp"/>
-            </LinearLayout>
+            <!-- Subgoal cards will be dynamically added here -->
 
         </LinearLayout>
     </ScrollView>

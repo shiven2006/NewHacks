@@ -134,20 +134,21 @@ public class MainPageActivity extends AppCompatActivity {
                 Goal currentGoal = goalList.get(currentGoalIndex);
 
                 Intent intent = new Intent(MainPageActivity.this, PlantDetailActivity.class);
-                intent.putExtra("GOAL_ID", currentGoal.id); // ✅ Pass the goal ID
+                intent.putExtra("GOAL_TITLE", currentGoal.title); // ✅ Pass the goal title
                 startActivity(intent);
             } else {
                 Toast.makeText(MainPageActivity.this, "No goal to display", Toast.LENGTH_SHORT).show();
             }
         });
 
+
         btnAddGoal.setOnClickListener(v ->
                 startActivity(new Intent(MainPageActivity.this, CreateGoalActivity.class))
         );
 
-//        btnCollection.setOnClickListener(v ->
-//                startActivity(new Intent(MainPageActivity.this, CollectionActivity.class))
-//        );
+        btnCollection.setOnClickListener(v ->
+                startActivity(new Intent(MainPageActivity.this, CollectionActivity.class))
+        );
     }
 
     // ================== BACKEND API CALLS ==================
